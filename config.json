@@ -1,6 +1,6 @@
 {
-  "esp_paths": [
     "sample_esp"
+  "eps_paths": [
   ],
   "append_separator": ", ",
   "default_insert_target": "prompt",
