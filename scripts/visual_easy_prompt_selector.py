@@ -454,6 +454,7 @@ def merge_metadata(
     if not isinstance(meta, dict):
         meta = {}
     merged = dict(item)
+    merged["display_name_override"] = meta.get("display_name_override") or ""
     merged["display_name_effective"] = meta.get("display_name_override") or item["display_name"]
     merged["prepend_prompt"] = meta.get("prepend_prompt") or ""
     merged["append_prompt"] = meta.get("append_prompt") or ""
