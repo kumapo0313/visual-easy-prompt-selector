@@ -34,7 +34,7 @@ FUZZY_PREVIEW_SCAN_LIMIT = 2000
 
 DEFAULT_CONFIG = {
     "eps_paths": [
-        "Y:/StabilityMatrix-win-x64/Data/Packages/Stable Diffusion WebUI reForge/extensions/sdweb-easy-prompt-selector"
+        "eps"
     ],
     "append_separator": ", ",
     "default_insert_target": "prompt",

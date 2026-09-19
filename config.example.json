@@ -1,6 +1,6 @@
 ﻿{
-  "esp_paths": [
-    "../sdweb-easy-prompt-selector"
+  "eps_paths": [
+    "sample_eps"
   ],
   "append_separator": ", ",
   "default_insert_target": "prompt",
