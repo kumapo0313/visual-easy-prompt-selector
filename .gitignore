@@ -8,3 +8,5 @@ __pycache__/
 
 Thumbs.db
 .DS_Store
+
+visual_eps_metadata.json
