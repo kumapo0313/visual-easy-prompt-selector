@@ -8,9 +8,3 @@ __pycache__/
 
 Thumbs.db
 .DS_Store
-# Local preview images are optional and can be very large.
-previews/*
-!previews/.gitkeep
-!previews/placeholder.png
-
-
