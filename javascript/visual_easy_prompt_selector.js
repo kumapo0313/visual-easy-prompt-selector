@@ -452,7 +452,7 @@
   }
 
 
-  async function resizeImageFileAsDataUrl(file, maxSize = 256, quality = 0.84) {
+  async function resizeImageFileAsDataUrl(file, maxSize = 800, quality = 0.84) {
     if (!file) return { dataUrl: "", name: "" };
     if (!file.type || !file.type.startsWith("image/")) {
       return { dataUrl: await readFileAsDataUrl(file), name: file.name || "preview" };
