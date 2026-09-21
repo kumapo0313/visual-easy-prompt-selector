@@ -772,7 +772,8 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
 
     def create_dirs_view_html(self, tabname: str) -> str:
         sources = sorted({str(item.get("veps_source") or "unknown.yml") for item in self.items.values()}, key=natural_sort_key)
-        return "".join(
+        revision_marker = f"<div class='veps-source-tree' data-veps-revision='{self._load_revision}' hidden></div>"
+        buttons = "".join(
             f"""
             <button class='lg secondary gradio-button custom-button' onclick='extraNetworksSearchButton("{tabname}", "{self.extra_networks_tabname}", event)'>
             {html.escape(source)}
@@ -780,6 +781,7 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
             """
             for source in sources
         )
+        return revision_marker + buttons
 
     def list_items(self):
         try:
