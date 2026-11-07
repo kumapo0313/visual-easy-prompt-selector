@@ -457,6 +457,19 @@
   font: inherit;
 }
 
+.veps-extra-toolbar .veps-load-row .veps-load-button {
+  padding: 6px 16px;
+  border: 1px solid rgba(96, 165, 250, 0.7);
+  background: #2563eb;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.veps-extra-toolbar .veps-load-row .veps-load-button:hover:not(:disabled) {
+  border-color: rgba(147, 197, 253, 0.9);
+  background: #1d4ed8;
+}
+
 .veps-local-search,
 .veps-search-mode,
 .veps-image-select {
