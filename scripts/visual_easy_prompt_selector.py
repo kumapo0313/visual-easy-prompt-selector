@@ -551,6 +551,8 @@ def save_image_data_url(data_url: str, original_name: str, item: dict[str, Any])
 class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
     def __init__(self):
         super().__init__("Visual EPS")
+        # Visual EPS has its own "Prompt edit" button; hide Forge's standard "Edit metadata" button.
+        self.btn_edit_item_tpl = ""
         self.allow_negative_prompt = False
         self._config = load_config()
         self._loaded = self.load_mode() == "startup"
