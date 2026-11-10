@@ -6,8 +6,6 @@ import json
 import re
 import base64
 import mimetypes
-import shutil
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +25,6 @@ CONFIG_PATH = BASE_DIR / "config.json"
 METADATA_PATH = BASE_DIR / "visual_eps_metadata.json"
 PREVIEWS_DIR = BASE_DIR / "previews"
 CUSTOM_PREVIEWS_DIR = PREVIEWS_DIR / "custom"
-AUTO_REMOVED_PREVIEWS_DIR = PREVIEWS_DIR / "_auto_removed"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 IMAGE_MAPPING_NAMES = ("image_mapping.json",)
 FUZZY_PREVIEW_SCAN_LIMIT = 2000
@@ -228,25 +225,11 @@ def is_protected_preview_path(path: Path) -> bool:
             return True
         relative = resolved.relative_to(PREVIEWS_DIR.resolve())
         parts = set(relative.parts)
-        if "custom" in parts or "_auto_removed" in parts or "_original_backup" in parts:
+        if "custom" in parts or "_original_backup" in parts:
             return True
         return False
     except Exception:
         return True
-
-
-def unique_path(path: Path) -> Path:
-    if not path.exists():
-        return path
-    stem = path.stem
-    suffix = path.suffix
-    parent = path.parent
-    counter = 2
-    while True:
-        candidate = parent / f"{stem}_{counter}{suffix}"
-        if not candidate.exists():
-            return candidate
-        counter += 1
 
 
 def mapped_preview_files(mapping_path: Path, mapping: dict[str, Any], prompts: set[str]) -> set[Path]:
@@ -283,8 +266,6 @@ def cleanup_orphaned_mapped_previews(raw_items: list[dict[str, str]], metadata: 
         log("auto cleanup skipped because no EPS prompts were loaded")
         return
 
-    backup_root = AUTO_REMOVED_PREVIEWS_DIR / datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_created = False
     removed_count = 0
     changed_mappings = 0
 
@@ -296,7 +277,7 @@ def cleanup_orphaned_mapped_previews(raw_items: list[dict[str, str]], metadata: 
                 if not path_is_inside(mapping_path, PREVIEWS_DIR):
                     continue
                 relative_parts = set(mapping_path.relative_to(PREVIEWS_DIR).parts)
-                if "_auto_removed" in relative_parts or "_original_backup" in relative_parts:
+                if "_original_backup" in relative_parts:
                     continue
                 try:
                     loaded = json.loads(mapping_path.read_text(encoding="utf-8-sig"))
@@ -319,13 +300,7 @@ def cleanup_orphaned_mapped_previews(raw_items: list[dict[str, str]], metadata: 
 
                 image_path = resolve_mapped_preview(mapping_path, str(filename))
                 if image_path and image_path.exists() and image_path.resolve() not in protected_files and not is_protected_preview_path(image_path):
-                    relative_image = image_path.resolve().relative_to(PREVIEWS_DIR.resolve())
-                    target = unique_path(backup_root / relative_image)
-                    if not backup_created:
-                        backup_root.mkdir(parents=True, exist_ok=True)
-                        backup_created = True
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.move(str(image_path), str(target))
+                    image_path.unlink()
                     removed_count += 1
                 mapping_changed = True
 
@@ -336,7 +311,7 @@ def cleanup_orphaned_mapped_previews(raw_items: list[dict[str, str]], metadata: 
         if removed_count or changed_mappings:
             log(
                 "auto removed orphaned mapped previews: "
-                f"{removed_count} image(s), {changed_mappings} mapping file(s); backup={backup_root if backup_created else 'none'}"
+                f"{removed_count} image(s) deleted, {changed_mappings} mapping file(s) updated"
             )
     except Exception as exc:
         log(f"auto cleanup of orphaned mapped previews failed: {exc}")
