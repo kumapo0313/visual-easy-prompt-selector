@@ -2,7 +2,7 @@
   "use strict";
 
   const state = {
-    category: "",
+    path: "",
     tag: "",
     image: "all",
     query: "",
@@ -122,6 +122,33 @@
     return qa(".veps-extra-card", page);
   }
 
+  function isTreeLeaf(card) {
+    return card.matches("li.tree-list-item");
+  }
+
+  // Same "source/category" path the source tree and the dirs view use.
+  function cardPath(card) {
+    return `${card.dataset.vepsSource || "unknown.yml"}/${card.dataset.vepsCategory || "Root"}`;
+  }
+
+  function pathMatches(card) {
+    if (!state.path) return true;
+    const path = cardPath(card);
+    return path === state.path || path.startsWith(`${state.path}/`);
+  }
+
+  function setPathFilter(path) {
+    state.path = path || "";
+    applyFilters();
+  }
+
+  function clearNativeExtraSearch(page) {
+    const nativeSearch = nativeExtraSearchForPage(page);
+    if (!nativeSearch || !nativeSearch.value) return;
+    nativeSearch.value = "";
+    nativeSearch.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
   function loadedPromptCount(page) {
     return qa(".card.veps-extra-card", page).length;
   }
@@ -227,9 +254,22 @@
       updateLoadControls(page, { loaded: false, message: error.message || String(error) });
     }
   }
+  // Source buttons (dirs view) and tree folders filter by path in Visual EPS itself,
+  // instead of going through Forge's native search box, so they combine with the toolbar filters.
   function visualEspTreeClickGuard(event) {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
+
+    const sourceButton = target.closest(".veps-source-button");
+    if (sourceButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      const path = sourceButton.dataset.vepsPath || "";
+      setPathFilter(state.path === path ? "" : path);
+      return;
+    }
+
     const content = target.closest(".veps-source-tree .tree-list-content-dir");
     if (!content) return;
     const page = content.closest("[id$='_visual_esp'], [id$='_visual_eps']");
@@ -241,11 +281,27 @@
     event.stopPropagation();
     event.stopImmediatePropagation();
 
-    const search = nativeExtraSearchForPage(page);
-    if (search) {
-      search.value = content.dataset.path || "";
-      search.dispatchEvent(new Event("input", { bubbles: true }));
+    const subgroup = content.nextElementSibling && content.nextElementSibling.matches("ul") ? content.nextElementSibling : null;
+    const expanded = subgroup && !subgroup.hasAttribute("hidden");
+    const selected = "selected" in content.dataset;
+
+    for (const other of qa(".veps-source-tree .tree-list-content[data-selected]", page)) {
+      delete other.dataset.selected;
     }
+    if (selected && (expanded || !subgroup)) {
+      if (subgroup) {
+        subgroup.setAttribute("hidden", "");
+        delete content.dataset.expanded;
+      }
+      setPathFilter("");
+      return;
+    }
+    if (subgroup) {
+      subgroup.removeAttribute("hidden");
+      content.dataset.expanded = "";
+    }
+    content.dataset.selected = "";
+    setPathFilter(content.dataset.path || "");
   }
 
   function buildToolbar(page) {
@@ -297,7 +353,7 @@
         applyFilters();
       }
       if (event.target.closest(".veps-clear-filter")) {
-        state.category = "";
+        state.path = "";
         state.tag = "";
         state.image = "all";
         state.query = "";
@@ -308,6 +364,10 @@
         if (search) search.value = "";
         const searchMode = q(".veps-search-mode", toolbar);
         if (searchMode) searchMode.value = "and";
+        for (const selected of qa(".veps-source-tree .tree-list-content[data-selected]", page)) {
+          delete selected.dataset.selected;
+        }
+        clearNativeExtraSearch(page);
         applyFilters();
       }
     });
@@ -331,6 +391,7 @@
     });
 
     page.prepend(toolbar);
+    clearNativeExtraSearch(page);
     syncToolbarTags(page);
     getLoadStatus()
       .then((status) => {
@@ -344,14 +405,41 @@
     applyFilters();
   }
 
+  // While a keyword/tag/image filter is active, hide tree folders without matches
+  // and expand the folders that contain matches.
+  function syncSourceTree(page, contentFilterActive) {
+    const leaves = qa(".veps-source-tree li.veps-extra-card", page);
+    if (leaves.length === 0) return;
+    const dirs = qa(".veps-source-tree li[data-tree-entry-type='dir']", page);
+    if (!contentFilterActive) {
+      for (const dir of dirs) dir.classList.remove("veps-filter-hidden");
+      return;
+    }
+    for (const dir of dirs) {
+      const hasMatch = q("li.veps-extra-card:not(.veps-filter-hidden)", dir) !== null;
+      dir.classList.toggle("veps-filter-hidden", !hasMatch);
+      const subgroup = q(":scope > ul.tree-list--subgroup", dir);
+      if (hasMatch && subgroup && subgroup.hasAttribute("hidden")) {
+        subgroup.removeAttribute("hidden");
+        const button = subgroup.previousElementSibling;
+        if (button) button.dataset.expanded = "";
+      }
+    }
+  }
+
   function applyFilters() {
+    const tokens = parseTokens(state.query);
+    const contentFilterActive = tokens.length > 0 || Boolean(state.tag) || state.image !== "all";
     for (const page of visualEspPages()) {
       let visible = 0;
+      let total = 0;
+      let leafVisible = 0;
+      let leafTotal = 0;
       const cards = pageCards(page);
       for (const card of cards) {
+        const treeLeaf = isTreeLeaf(card);
         const tags = (card.dataset.vepsTags || "").split(",").map((tag) => tag.trim());
         const hasImage = card.dataset.vepsHasImage === "1";
-        const tokens = parseTokens(state.query);
         const blob = cardSearchBlob(card);
         const tagMatch = !state.tag || tags.includes(state.tag);
         const imageMatch =
@@ -363,17 +451,31 @@
           (state.searchMode === "or"
             ? tokens.some((token) => blob.includes(token))
             : tokens.every((token) => blob.includes(token)));
-        const show = tagMatch && imageMatch && searchMatch;
+        // The tree is the navigation itself, so the path filter only narrows the card grid.
+        const show = tagMatch && imageMatch && searchMatch && (treeLeaf || pathMatches(card));
         card.classList.toggle("veps-filter-hidden", !show);
+        if (treeLeaf) {
+          leafTotal += 1;
+          if (show) leafVisible += 1;
+          continue;
+        }
+        total += 1;
         if (show) visible += 1;
+      }
+      syncSourceTree(page, contentFilterActive);
+      if (total === 0) {
+        // Tree-only layout: report the tree leaves instead.
+        visible = leafVisible;
+        total = leafTotal;
       }
       const active = q(".veps-active-filter", page);
       if (active) {
         const labels = [];
+        if (state.path) labels.push(`Path: ${state.path}`);
         if (state.tag) labels.push(`#${state.tag}`);
         if (state.image !== "all") labels.push(state.image === "with" ? "Image only" : "No image");
         if (state.query) labels.push(`${state.searchMode.toUpperCase()}: ${state.query}`);
-        active.textContent = `${visible} / ${cards.length} visible${labels.length ? " - " + labels.join(" / ") : ""}`;
+        active.textContent = `${visible} / ${total} visible${labels.length ? " - " + labels.join(" / ") : ""}`;
       }
       setupLazyImages(page);
     }

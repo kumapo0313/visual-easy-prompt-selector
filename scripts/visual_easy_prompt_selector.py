@@ -775,9 +775,10 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
     def create_dirs_view_html(self, tabname: str) -> str:
         sources = sorted({str(item.get("veps_source") or "unknown.yml") for item in self.items.values()}, key=natural_sort_key)
         revision_marker = f"<div class='veps-source-tree' data-veps-revision='{self._load_revision}' hidden></div>"
+        # Filtered by the Visual EPS toolbar (data-veps-path), not Forge's native search box.
         buttons = "".join(
             f"""
-            <button class='lg secondary gradio-button custom-button' onclick='extraNetworksSearchButton("{tabname}", "{self.extra_networks_tabname}", event)'>
+            <button type='button' class='lg secondary gradio-button custom-button veps-source-button' data-veps-path='{html.escape(source, quote=True)}'>
             {html.escape(source)}
             </button>
             """
