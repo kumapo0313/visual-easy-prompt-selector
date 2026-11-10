@@ -31,7 +31,7 @@ Use this method if you want WebUI's extension updater to work.
 3. Paste this URL:
 
 ```text
-https://github.com/dr1610/visual-easy-prompt-selector.git
+https://github.com/kumapo0313/visual-easy-prompt-selector
 ```
 
 4. Click install.
