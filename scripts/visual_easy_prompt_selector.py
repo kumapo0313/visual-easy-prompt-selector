@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import html
 import importlib
@@ -62,9 +62,9 @@ def ensure_files() -> None:
         PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
         CUSTOM_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
         if not CONFIG_PATH.exists():
-            CONFIG_PATH.write_text(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8")
+            CONFIG_PATH.write_text(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
         if not METADATA_PATH.exists():
-            METADATA_PATH.write_text("{}", encoding="utf-8")
+            METADATA_PATH.write_text("{}", encoding="utf-8", newline="\n")
     except Exception as exc:
         log(f"startup file generation failed: {exc}")
 
@@ -97,7 +97,7 @@ def load_metadata() -> dict[str, Any]:
 def save_metadata(metadata: dict[str, Any]) -> None:
     try:
         ensure_files()
-        METADATA_PATH.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        METADATA_PATH.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
     except Exception as exc:
         log(f"failed to save metadata: {exc}")
         raise
@@ -332,7 +332,7 @@ def cleanup_orphaned_mapped_previews(raw_items: list[dict[str, str]], metadata: 
                 mapping_changed = True
 
             if mapping_changed:
-                mapping_path.write_text(json.dumps(cleaned, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                mapping_path.write_text(json.dumps(cleaned, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
                 changed_mappings += 1
 
         if removed_count or changed_mappings:

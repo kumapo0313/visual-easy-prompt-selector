@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import queue
@@ -120,7 +120,7 @@ def update_mapping_file(mapping_path: Path, old_name_to_new_name: dict[str, str]
             data[key] = new_name
             changed = True
     if changed:
-        mapping_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        mapping_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     return changed
 
 
@@ -142,7 +142,7 @@ def update_metadata(metadata_path: Path, old_rel_to_new_rel: dict[str, str]) -> 
             entry["image"] = old_rel_to_new_rel[image]
             changed = True
     if changed:
-        metadata_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        metadata_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     return changed
 
 
@@ -173,7 +173,7 @@ def update_yaml_refs(base_dir: Path, old_rel_to_new_rel: dict[str, str]) -> int:
             updated = updated.replace(old_text, new_text)
         if updated == original:
             continue
-        yaml_path.write_text(updated, encoding="utf-8")
+        yaml_path.write_text(updated, encoding="utf-8", newline="\n")
         changed_count += 1
     return changed_count
 def convert_previews(options: ConvertOptions, progress: Callable[[str], None] | None = None) -> tuple[list[ConvertResult], list[str]]:

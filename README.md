@@ -1,4 +1,4 @@
-﻿# Visual Easy Prompt Selector
+# Visual Easy Prompt Selector
 
 Visual Easy Prompt Selector is an extension for Stable Diffusion WebUI, Forge, and reForge. It displays Easy Prompt Selector YAML entries as searchable visual cards in the Extra Networks panel.
 
