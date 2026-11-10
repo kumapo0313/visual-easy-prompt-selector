@@ -584,7 +584,8 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
         name = str(item.get("display_name_effective") or item.get("display_name") or item.get("id"))
         category = str(item.get("category_path") or "Root")
         source = str(item.get("source_file") or "")
-        filename = str(image_path if has_image else PREVIEWS_DIR / "visual_eps_no_image.placeholder")
+        # Forge requires the key; no-image cards have no file, so leave it empty.
+        filename = str(image_path) if has_image else ""
         preview = self.link_preview(str(image_path)) if has_image else None
         description_parts = [str(item.get("prompt") or ""), category, source]
         tags = [f"#{tag}" for tag in item.get("tags", [])]
@@ -802,7 +803,7 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
 
     def read_user_metadata(self, item, use_cache=True):
         # Visual EPS keeps its metadata in visual_eps_metadata.json. Forge's sidecar <filename>.json
-        # is keyed by the preview file, which many cards share (e.g. the no-image placeholder),
+        # is keyed by the preview file, which several cards can share,
         # so its description would leak one card's prompt into other cards.
         item["user_metadata"] = {}
 
