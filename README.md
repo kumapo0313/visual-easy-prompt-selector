@@ -91,27 +91,19 @@ If `Checkpoint`, `LoRA`, or `Visual EPS` appears blank:
 
 ## First Run
 
-The extension tries to detect Easy Prompt Selector folders next to this extension:
+By default, Visual EPS loads YAML files from the `eps` folder inside this extension.
 
-```text
-extensions/sdweb-easy-prompt-selector
-extensions/sd-easy-prompt-selector
-extensions/easy-prompt-selector
-```
-
-If no Easy Prompt Selector folder is found, the bundled `sample_esp` folder is used so the tab can still open.
-
-To set a custom folder, edit `config.json`:
+To use another folder, edit `config.json`:
 
 ```json
 {
-  "esp_paths": [
-    "../sdweb-easy-prompt-selector"
-  ]
+  "eps_path": "../sdweb-easy-prompt-selector/tags"
 }
 ```
 
-Relative paths are resolved from the Visual EPS extension folder.
+`eps_path` takes a single folder. All `.yml` / `.yaml` files in it, including subfolders, are loaded. Relative paths are resolved from the Visual EPS extension folder.
+
+The older multi-folder `eps_paths` / `esp_paths` list is still read for compatibility, but only its first entry is used.
 
 ## Load Timing
 
@@ -225,7 +217,7 @@ It does not modify:
 
 ### The tab only shows sample prompts
 
-Check `config.json`. If `esp_paths` points to `sample_esp`, change it to your Easy Prompt Selector folder.
+Check `config.json`. If `eps_path` points to `sample_eps`, change it to your Easy Prompt Selector folder.
 
 You can also delete `config.json` and restart WebUI to let Visual EPS regenerate it.
 

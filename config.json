@@ -1,7 +1,5 @@
 {
-  "eps_paths": [
-    "eps"
-  ],
+  "eps_path": "eps/prompts",
   "append_separator": ", ",
   "default_insert_target": "prompt",
   "enable_txt2img": true,

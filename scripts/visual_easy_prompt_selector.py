@@ -30,9 +30,7 @@ IMAGE_MAPPING_NAMES = ("image_mapping.json",)
 FUZZY_PREVIEW_SCAN_LIMIT = 2000
 
 DEFAULT_CONFIG = {
-    "eps_paths": [
-        "eps"
-    ],
+    "eps_path": "eps",
     "append_separator": ", ",
     "default_insert_target": "prompt",
     "enable_txt2img": True,
@@ -82,7 +80,24 @@ def load_config() -> dict[str, Any]:
     loaded = load_json(CONFIG_PATH, {})
     if isinstance(loaded, dict):
         config.update(loaded)
+        if "eps_path" not in loaded:
+            legacy_path = legacy_eps_path(loaded)
+            if legacy_path:
+                config["eps_path"] = legacy_path
     return config
+
+
+def legacy_eps_path(loaded: dict[str, Any]) -> str:
+    """Map the old multi-folder "eps_paths" / "esp_paths" list to the single "eps_path"."""
+    legacy = loaded.get("eps_paths", loaded.get("esp_paths"))
+    if not isinstance(legacy, list):
+        return ""
+    paths = [str(path).strip() for path in legacy if str(path).strip()]
+    if not paths:
+        return ""
+    if len(paths) > 1:
+        log(f'"eps_paths" now supports one folder; using "{paths[0]}" and ignoring {len(paths) - 1} other(s). Set "eps_path" in config.json.')
+    return paths[0]
 
 
 def load_metadata() -> dict[str, Any]:
@@ -100,35 +115,26 @@ def save_metadata(metadata: dict[str, Any]) -> None:
         raise
 
 
-def yaml_files(eps_paths: list[str]) -> list[Path]:
-    files: list[Path] = []
-    for raw_path in eps_paths:
-        try:
-            root = Path(raw_path)
-            if not root.exists():
-                log(f"EPS path does not exist: {raw_path}")
-                continue
-            files.extend(sorted(root.rglob("*.yml")))
-            files.extend(sorted(root.rglob("*.yaml")))
-        except Exception as exc:
-            log(f"failed to scan EPS path {raw_path}: {exc}")
-    return files
-
-
-def config_eps_paths(config: dict[str, Any]) -> list[str]:
-    eps_paths = config.get("eps_paths", config.get("esp_paths", []))
-    if not isinstance(eps_paths, list):
+def yaml_files(root: Path | None) -> list[Path]:
+    if root is None:
         return []
-    resolved: list[str] = []
-    for raw_path in eps_paths:
-        path_text = str(raw_path).strip()
-        if not path_text:
-            continue
-        path = Path(path_text)
-        if not path.is_absolute():
-            path = BASE_DIR / path
-        resolved.append(str(path))
-    return resolved
+    try:
+        if not root.exists():
+            log(f"EPS path does not exist: {root}")
+            return []
+        return sorted(root.rglob("*.yml")) + sorted(root.rglob("*.yaml"))
+    except Exception as exc:
+        log(f"failed to scan EPS path {root}: {exc}")
+        return []
+
+
+def config_eps_path(config: dict[str, Any]) -> Path | None:
+    path_text = str(config.get("eps_path") or "").strip()
+    if not path_text:
+        log('"eps_path" is not set in config.json')
+        return None
+    path = Path(path_text)
+    return path if path.is_absolute() else BASE_DIR / path
 
 
 def is_scalar(value: Any) -> bool:
@@ -181,7 +187,7 @@ def walk_yaml(node: Any, path_parts: list[str], source_file: str, items: list[di
 
 def load_eps_items(config: dict[str, Any]) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
-    for path in yaml_files(config_eps_paths(config)):
+    for path in yaml_files(config_eps_path(config)):
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8-sig"))
             if data is None:
