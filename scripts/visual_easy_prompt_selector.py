@@ -802,6 +802,12 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
     def allowed_directories_for_previews(self):
         return [str(PREVIEWS_DIR)]
 
+    def read_user_metadata(self, item, use_cache=True):
+        # Visual EPS keeps its metadata in visual_eps_metadata.json. Forge's sidecar <filename>.json
+        # is keyed by the preview file, which many cards share (e.g. the no-image placeholder),
+        # so its description would leak one card's prompt into other cards.
+        item["user_metadata"] = {}
+
 
 VISUAL_EPS_PAGE: ExtraNetworksPageVisualEPS | None = None
 
