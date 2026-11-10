@@ -230,8 +230,6 @@ def is_protected_preview_path(path: Path) -> bool:
         parts = set(relative.parts)
         if "custom" in parts or "_auto_removed" in parts or "_original_backup" in parts:
             return True
-        if resolved.name == "placeholder.png":
-            return True
         return False
     except Exception:
         return True

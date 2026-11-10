@@ -72,8 +72,6 @@ def candidate_images(previews_dir: Path, min_bytes: int, include_webp: bool) -> 
             continue
         if any(part in SKIP_DIR_NAMES for part in path.parts):
             continue
-        if path.name.lower() == "placeholder.png":
-            continue
         if not include_webp and path.suffix.lower() == ".webp":
             continue
         if min_bytes and path.stat().st_size < min_bytes:
