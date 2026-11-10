@@ -63,11 +63,11 @@
     }
   }
   function pageForCard(card) {
-    return card.closest(".extra-page") || card.closest("[id$='_visual_esp'], [id$='_visual_eps']");
+    return card.closest(".extra-page") || card.closest("[id$='_visual_eps']");
   }
 
-  function visualEspPages() {
-    return qa("[id$='_visual_esp'], [id$='_visual_eps']");
+  function visualEpsPages() {
+    return qa("[id$='_visual_eps']");
   }
 
   function cardTitle(card) {
@@ -196,7 +196,7 @@
     return data;
   }
 
-  function waitForVisualEspRefresh(page, expectedRevision) {
+  function waitForVisualEpsRefresh(page, expectedRevision) {
     let attempts = 0;
     const poll = () => {
       const tree = q(".veps-source-tree", page);
@@ -222,7 +222,7 @@
     window.setTimeout(poll, 500);
   }
 
-  async function requestVisualEspLoad(page, force = false) {
+  async function requestVisualEpsLoad(page, force = false) {
     if (!page || page.dataset.vepsLoading === "1") return;
     page.dataset.vepsLoading = "1";
     updateLoadControls(page, { loading: true, message: "Reading EPS data after WebUI startup..." });
@@ -237,26 +237,26 @@
       const refreshButton = document.getElementById(`${page.id}_extra_refresh_internal`);
       if (!refreshButton) throw new Error("Visual EPS refresh control is unavailable");
       refreshButton.click();
-      waitForVisualEspRefresh(page, data.revision);
+      waitForVisualEpsRefresh(page, data.revision);
     } catch (error) {
       page.dataset.vepsLoading = "0";
       updateLoadControls(page, { loaded: false, message: error.message || String(error) });
     }
   }
 
-  async function maybeLoadVisualEspOnOpen(page) {
+  async function maybeLoadVisualEpsOnOpen(page) {
     if (!page || pageCards(page).length || page.dataset.vepsLoading === "1") return;
     try {
       const status = await getLoadStatus();
       updateLoadControls(page, { loaded: status.loaded, message: status.loaded ? "Ready to display" : "Not loaded" });
-      if (status.load_mode === "on_tab_open") await requestVisualEspLoad(page, false);
+      if (status.load_mode === "on_tab_open") await requestVisualEpsLoad(page, false);
     } catch (error) {
       updateLoadControls(page, { loaded: false, message: error.message || String(error) });
     }
   }
   // Source buttons (dirs view) and tree folders filter by path in Visual EPS itself,
   // instead of going through Forge's native search box, so they combine with the toolbar filters.
-  function visualEspTreeClickGuard(event) {
+  function visualEpsTreeClickGuard(event) {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
 
@@ -272,7 +272,7 @@
 
     const content = target.closest(".veps-source-tree .tree-list-content-dir");
     if (!content) return;
-    const page = content.closest("[id$='_visual_esp'], [id$='_visual_eps']");
+    const page = content.closest("[id$='_visual_eps']");
     if (!page) return;
     const clickedChevron = target.closest(".tree-list-item-action--leading, .tree-list-item-action-chevron");
     if (clickedChevron) return;
@@ -343,7 +343,7 @@
     toolbar.addEventListener("click", (event) => {
       if (event.target.closest(".veps-load-button")) {
         event.preventDefault();
-        requestVisualEspLoad(page, true);
+        requestVisualEpsLoad(page, true);
         return;
       }
       const tagButton = event.target.closest("[data-tag]");
@@ -430,7 +430,7 @@
   function applyFilters() {
     const tokens = parseTokens(state.query);
     const contentFilterActive = tokens.length > 0 || Boolean(state.tag) || state.image !== "all";
-    for (const page of visualEspPages()) {
+    for (const page of visualEpsPages()) {
       let visible = 0;
       let total = 0;
       let leafVisible = 0;
@@ -575,8 +575,8 @@
     return data;
   }
 
-  function refreshVisualEspPages(targetPage = null) {
-    for (const page of targetPage ? [targetPage] : visualEspPages()) {
+  function refreshVisualEpsPages(targetPage = null) {
+    for (const page of targetPage ? [targetPage] : visualEpsPages()) {
       const button = document.getElementById(`${page.id}_extra_refresh_internal`);
       if (button) button.click();
     }
@@ -642,7 +642,7 @@
           image_name: imagePayload.name,
         });
         status.textContent = "Saved. Refreshing cards...";
-        refreshVisualEspPages(pageForCard(card));
+        refreshVisualEpsPages(pageForCard(card));
         setTimeout(closeModal, 600);
       } catch (error) {
         status.textContent = error.message || String(error);
@@ -667,7 +667,7 @@
   }
 
   function bindCards() {
-    for (const page of visualEspPages()) {
+    for (const page of visualEpsPages()) {
       buildToolbar(page);
     }
     setupLazyImages();
@@ -698,30 +698,30 @@
   }
 
 
-  function bindOnVisualEspInteraction(event) {
+  function bindOnVisualEpsInteraction(event) {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
-    const tabButton = target.closest("button[id$='_visual_esp-button'], button[id$='_visual_eps-button']");
+    const tabButton = target.closest("button[id$='_visual_eps-button']");
     if (tabButton) {
       const page = document.getElementById(tabButton.id.replace(/-button$/, ""));
-      window.setTimeout(() => maybeLoadVisualEspOnOpen(page), 0);
+      window.setTimeout(() => maybeLoadVisualEpsOnOpen(page), 0);
     }
-    if (!target.closest("[id$='_visual_esp'], [id$='_visual_eps'], button, .tab-nav, .tabs")) return;
+    if (!target.closest("[id$='_visual_eps'], button, .tab-nav, .tabs")) return;
     window.setTimeout(bindCards, 80);
     window.setTimeout(bindCards, 350);
   }
   document.addEventListener("DOMContentLoaded", bindCards);
   document.addEventListener("gradio:loaded", () => {
     bindCards();
-    for (const page of visualEspPages()) {
+    for (const page of visualEpsPages()) {
       const tabButton = document.getElementById(`${page.id}-button`);
       if (tabButton && tabButton.getAttribute("aria-selected") === "true") {
-        maybeLoadVisualEspOnOpen(page);
+        maybeLoadVisualEpsOnOpen(page);
       }
     }
   });
-  document.addEventListener("click", bindOnVisualEspInteraction, true);
-  document.addEventListener("click", visualEspTreeClickGuard, true);
+  document.addEventListener("click", bindOnVisualEpsInteraction, true);
+  document.addEventListener("click", visualEpsTreeClickGuard, true);
 })();
 
 
