@@ -24,7 +24,7 @@ BASE_DIR = Path(basedir())
 CONFIG_PATH = BASE_DIR / "config.json"
 METADATA_PATH = BASE_DIR / "visual_eps_metadata.json"
 PREVIEWS_DIR = BASE_DIR / "previews"
-CUSTOM_PREVIEWS_DIR = PREVIEWS_DIR / "custom"
+EPS_PREVIEWS_DIR = PREVIEWS_DIR / "custom"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 IMAGE_MAPPING_NAMES = ("image_mapping.json",)
 FUZZY_PREVIEW_SCAN_LIMIT = 2000
@@ -55,7 +55,7 @@ def log(message: str) -> None:
 def ensure_files() -> None:
     try:
         PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
-        CUSTOM_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+        EPS_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
         if not CONFIG_PATH.exists():
             CONFIG_PATH.write_text(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
         if not METADATA_PATH.exists():
@@ -518,10 +518,10 @@ def save_image_data_url(data_url: str, original_name: str, item: dict[str, Any])
         raise ValueError("Image is too large")
 
     base_name = safe_filename(str(item.get("raw_path") or item.get("display_name") or item.get("id")))
-    target = CUSTOM_PREVIEWS_DIR / f"{base_name}{ext}"
+    target = EPS_PREVIEWS_DIR / f"{base_name}{ext}"
     counter = 2
     while target.exists():
-        target = CUSTOM_PREVIEWS_DIR / f"{base_name}_{counter}{ext}"
+        target = EPS_PREVIEWS_DIR / f"{base_name}_{counter}{ext}"
         counter += 1
     target.write_bytes(raw)
     return target.relative_to(BASE_DIR).as_posix()
