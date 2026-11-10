@@ -24,7 +24,9 @@ JSONReply = getattr(importlib.import_module("fastapi.res" + "ponses"), "JSON" + 
 EXTENSION_NAME = "visual-easy-prompt-selector"
 BASE_DIR = Path(basedir())
 CONFIG_PATH = BASE_DIR / "config.json"
-METADATA_PATH = BASE_DIR / "visual_eps_metadata.json"
+METADATA_PATH = BASE_DIR / "eps" / "visual_eps_metadata.json"
+# Older versions kept the metadata in the extension root; it is moved to METADATA_PATH on startup.
+LEGACY_METADATA_PATH = BASE_DIR / "visual_eps_metadata.json"
 PREVIEWS_DIR = BASE_DIR / "previews"
 EPS_PREVIEWS_DIR = BASE_DIR / "eps" / "previews"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
@@ -61,7 +63,12 @@ def ensure_files() -> None:
         if not CONFIG_PATH.exists():
             CONFIG_PATH.write_text(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
         if not METADATA_PATH.exists():
-            METADATA_PATH.write_text("{}", encoding="utf-8", newline="\n")
+            METADATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+            if LEGACY_METADATA_PATH.exists():
+                LEGACY_METADATA_PATH.replace(METADATA_PATH)
+                log(f"moved {LEGACY_METADATA_PATH.name} to {METADATA_PATH.relative_to(BASE_DIR).as_posix()}")
+            else:
+                METADATA_PATH.write_text("{}", encoding="utf-8", newline="\n")
     except Exception as exc:
         log(f"startup file generation failed: {exc}")
 

@@ -203,7 +203,7 @@ The recommended preview size is around 128-256 px. Keep original large images ou
 Visual EPS writes these files:
 
 - `config.json`
-- `visual_esp_metadata.json`
+- `eps/visual_eps_metadata.json`
 - `eps/previews/`
 - YAML files under `eps_path`, only when you edit a card's prompt
 
