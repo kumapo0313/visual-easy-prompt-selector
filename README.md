@@ -4,11 +4,10 @@ Visual Easy Prompt Selector is an extension for Stable Diffusion WebUI, Forge, a
 
 The extension reads Easy Prompt Selector files in read-only mode. It does not edit your original YAML files.
 
-## Status
+## Introduction
 
-Current test release: `v0.1-test5`
-
-This is still a test release. Please report issues with your WebUI type, browser, and a short description of what happened.
+dr1610さん開発の "Visual Easy Prompt Selector" の個人的なフォークバージョンです。
+素晴らしい拡張機能を公開してくださった dr1610さんに感謝申し上げます。
 
 ## What It Does
 
@@ -247,35 +246,9 @@ This usually means the extension was installed manually from ZIP. Install it fro
 
 Restart WebUI and hard-refresh the browser with `Ctrl + F5`.
 
-## Release Notes
+## Credits
 
-### v0.1-test5
-
-- Added deferred loading so large EPS libraries no longer scan during WebUI startup.
-- Added `manual`, `on_tab_open`, and `startup` load modes; `on_tab_open` is now the default.
-- Added persistent `Load Visual EPS` / `Reload Visual EPS` controls with load status and prompt count.
-- Refreshes only the active Visual EPS page after prompt metadata edits.
-
-### v0.1-test4
-
-- Fixed blank Visual EPS trees when EPS labels contain Unicode numerals such as `¹` or `²`.
-- Added a safe extension-local natural sort key that only converts ASCII digit runs to integers.
-- Large libraries now render a category-only tree above 5,000 entries instead of duplicating every prompt as a tree leaf. Set `max_tree_leaf_items` in `config.json` to change the threshold; use `-1` to always include prompt leaves.
-- Disabled fuzzy preview filename scans when more than 2,000 preview images are indexed. Explicit `image_mapping.json` entries and exact filename matches still work at any size.
-
-### v0.1-test3
-
-- Synchronized Visual EPS panel search with the native Extra Networks search so searches can target the full EPS tree.
-- Added lazy preview image loading to reduce browser work on large visual prompt libraries.
-- Added automatic cleanup for preview images mapped to EPS prompts that no longer exist.
-- Removed repeated background rebinding that could make reForge feel heavier over time.
-- Added a WebP preview resize tool for converting large PNG/JPG reference images into small thumbnails.
-- Added reference updates for `image_mapping.json`, metadata, and YAML image paths when using the resize tool.
-### v0.1-test2
-
-- Reworked Visual EPS Tree view rendering for reForge Extra Networks.
-- Reduced the chance that Visual EPS interferes with initial Checkpoint/LoRA panel rendering.
-- Added a safer fallback so Visual EPS tree errors do not affect other Extra Networks pages.
+- **[sd-civitai-browser](https://github.com/dr1610/visual-easy-prompt-selector)**  dr1610 — original project
 
 ## License
 
