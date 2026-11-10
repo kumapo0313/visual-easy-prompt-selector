@@ -24,7 +24,7 @@ BASE_DIR = Path(basedir())
 CONFIG_PATH = BASE_DIR / "config.json"
 METADATA_PATH = BASE_DIR / "visual_eps_metadata.json"
 PREVIEWS_DIR = BASE_DIR / "previews"
-EPS_PREVIEWS_DIR = PREVIEWS_DIR / "custom"
+EPS_PREVIEWS_DIR = BASE_DIR / "eps" / "previews"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 IMAGE_MAPPING_NAMES = ("image_mapping.json",)
 FUZZY_PREVIEW_SCAN_LIMIT = 2000
@@ -231,7 +231,7 @@ def is_protected_preview_path(path: Path) -> bool:
             return True
         relative = resolved.relative_to(PREVIEWS_DIR.resolve())
         parts = set(relative.parts)
-        if "custom" in parts or "_original_backup" in parts:
+        if "_original_backup" in parts:
             return True
         return False
     except Exception:
@@ -780,7 +780,8 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
             log(f"Extra Networks list_items failed: {exc}")
 
     def allowed_directories_for_previews(self):
-        return [str(PREVIEWS_DIR)]
+        # EPS_PREVIEWS_DIR (uploaded card images) lives outside PREVIEWS_DIR, so Forge must be told to serve it too.
+        return [str(PREVIEWS_DIR), str(EPS_PREVIEWS_DIR)]
 
     def read_user_metadata(self, item, use_cache=True):
         # Visual EPS keeps its metadata in visual_eps_metadata.json. Forge's sidecar <filename>.json

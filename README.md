@@ -203,7 +203,7 @@ Visual EPS writes only inside its own extension folder:
 
 - `config.json`
 - `visual_esp_metadata.json`
-- `previews/custom/`
+- `eps/previews/`
 
 It does not modify:
 
