@@ -131,14 +131,6 @@
     return page && page.id ? document.getElementById(`${page.id}_extra_search`) : null;
   }
 
-  function setNativeExtraSearch(page, value) {
-    const nativeSearch = nativeExtraSearchForPage(page);
-    if (!nativeSearch || nativeSearch.value === value) return;
-    nativeSearch.value = value;
-    nativeSearch.dispatchEvent(new Event("input", { bubbles: true }));
-    nativeSearch.dispatchEvent(new Event("change", { bubbles: true }));
-  }
-
   function updateLoadControls(page, { loaded = false, loading = false, message = "" } = {}) {
     const button = q(".veps-load-button", page);
     const status = q(".veps-load-status", page);
@@ -323,11 +315,6 @@
     const search = q(".veps-local-search", toolbar);
     search.addEventListener("input", () => {
       state.query = search.value;
-      for (const page of visualEspPages()) {
-        setNativeExtraSearch(page, state.query);
-      }
-      window.setTimeout(bindCards, 80);
-      window.setTimeout(applyFilters, 160);
       applyFilters();
     });
 
