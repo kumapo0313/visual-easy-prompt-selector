@@ -199,7 +199,7 @@ Visual EPS can become heavy if many high-resolution reference images are kept in
 This release keeps the visual workflow while reducing the amount of work done in the browser:
 
 - Preview images are lazy-loaded instead of forcing every card image to load immediately.
-- Visual EPS search is synchronized with the native Extra Networks search so the panel search can still target the full EPS tree.
+- Visual EPS search, tag, image, and source/folder filters run entirely in the Visual EPS toolbar, independent of the native Extra Networks search, so they combine across all EPS files.
 - Repeated background rebinding was removed to reduce unnecessary browser work.
 - A helper tool is included to resize existing preview images to small WebP thumbnails.
 
