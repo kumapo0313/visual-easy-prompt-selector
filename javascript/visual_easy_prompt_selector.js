@@ -590,7 +590,7 @@
     form.className = "veps-edit-form";
     form.innerHTML = `
       <label>Display name override<input name="display_name_override"></label>
-      <label>Original EPS prompt (read only)<textarea name="prompt" readonly></textarea></label>
+      <label><span class="veps-prompt-label">EPS prompt (saved to the YAML file)</span><textarea name="prompt"></textarea></label>
       <label>Prompt to prepend on insert<textarea name="prepend_prompt" placeholder="e.g. masterpiece, best quality"></textarea></label>
       <label>Prompt to append on insert<textarea name="append_prompt" placeholder="e.g. detailed eyes, soft lighting"></textarea></label>
       <label>Negative prompt to append<textarea name="append_negative" placeholder="e.g. low quality, bad anatomy"></textarea></label>
@@ -608,6 +608,10 @@
 
     form.elements.display_name_override.value = item.display_name_override || "";
     form.elements.prompt.value = item.prompt || "";
+    if (!item.prompt_editable) {
+      form.elements.prompt.readOnly = true;
+      q(".veps-prompt-label", form).textContent = "EPS prompt (read only)";
+    }
     form.elements.prepend_prompt.value = item.prepend_prompt || "";
     form.elements.append_prompt.value = item.append_prompt || "";
     form.elements.append_negative.value = item.append_negative || "";
@@ -626,6 +630,7 @@
         const imagePayload = await resizeImageFileAsDataUrl(file);
         await saveItem({
           id,
+          ...(item.prompt_editable ? { prompt: form.elements.prompt.value } : {}),
           display_name_override: form.elements.display_name_override.value,
           prepend_prompt: form.elements.prepend_prompt.value,
           append_prompt: form.elements.append_prompt.value,

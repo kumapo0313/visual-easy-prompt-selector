@@ -5,6 +5,8 @@ import importlib
 import json
 import re
 import base64
+import difflib
+import io
 import mimetypes
 from pathlib import Path
 from typing import Any
@@ -141,7 +143,7 @@ def is_scalar(value: Any) -> bool:
     return isinstance(value, (str, int, float, bool)) or value is None
 
 
-def make_item(path_parts: list[str], prompt: str, source_file: str) -> dict[str, str]:
+def make_item(path_parts: list[str], prompt: str, source_file: str, locator: list[list[Any]]) -> dict[str, Any]:
     safe_parts = [str(part).strip() for part in path_parts if str(part).strip()]
     display_name = safe_parts[-1] if safe_parts else prompt[:60]
     category_path = "/".join(safe_parts[:-1])
@@ -154,35 +156,48 @@ def make_item(path_parts: list[str], prompt: str, source_file: str) -> dict[str,
         "prompt": str(prompt or ""),
         "source_file": source_file,
         "raw_path": raw_path,
+        # Where the prompt lives in the YAML file: [["key", "<key text>"] | ["index", <n>], ...].
+        "yaml_locator": locator,
+        "prompt_editable": bool(locator),
     }
 
 
-def walk_yaml(node: Any, path_parts: list[str], source_file: str, items: list[dict[str, str]]) -> None:
+def walk_yaml(
+    node: Any,
+    path_parts: list[str],
+    source_file: str,
+    items: list[dict[str, Any]],
+    locator: list[list[Any]] | None = None,
+) -> None:
+    locator = locator or []
     if isinstance(node, dict):
         for key, value in node.items():
             key_text = str(key)
+            child_locator = locator + [["key", key_text]]
             if is_scalar(value):
-                items.append(make_item(path_parts + [key_text], str(value or key_text), source_file))
+                items.append(make_item(path_parts + [key_text], str(value or key_text), source_file, child_locator))
             else:
-                walk_yaml(value, path_parts + [key_text], source_file, items)
+                walk_yaml(value, path_parts + [key_text], source_file, items, child_locator)
         return
 
     if isinstance(node, list):
         for index, value in enumerate(node):
+            child_locator = locator + [["index", index]]
             if is_scalar(value):
                 text = str(value or "")
                 if text.strip():
-                    items.append(make_item(path_parts + [text], text, source_file))
+                    items.append(make_item(path_parts + [text], text, source_file, child_locator))
             elif isinstance(value, dict):
-                walk_yaml(value, path_parts, source_file, items)
+                walk_yaml(value, path_parts, source_file, items, child_locator)
             else:
-                walk_yaml(value, path_parts + [str(index)], source_file, items)
+                walk_yaml(value, path_parts + [str(index)], source_file, items, child_locator)
         return
 
     if is_scalar(node):
         text = str(node or "")
         if text.strip():
-            items.append(make_item(path_parts + [text], text, source_file))
+            # A bare scalar file has no key to write back to, so it stays read-only.
+            items.append(make_item(path_parts + [text], text, source_file, []))
 
 
 def load_eps_items(config: dict[str, Any]) -> list[dict[str, str]]:
@@ -196,6 +211,7 @@ def load_eps_items(config: dict[str, Any]) -> list[dict[str, str]]:
             walk_yaml(data, [], path.name, items)
             for item in items[before:]:
                 item["source_file"] = path.name
+                item["source_path"] = str(path)
         except Exception as exc:
             log(f"skipped YAML {path}: {exc}")
 
@@ -321,6 +337,106 @@ def cleanup_orphaned_mapped_previews(raw_items: list[dict[str, str]], metadata: 
             )
     except Exception as exc:
         log(f"auto cleanup of orphaned mapped previews failed: {exc}")
+
+
+def yaml_child(node: Any, step: list[Any]) -> tuple[Any, Any]:
+    """Resolve one locator step on a loaded YAML node. Returns (key or index in node, child value)."""
+    kind, value = step
+    if kind == "key" and isinstance(node, dict):
+        for key in node:
+            if str(key) == value:
+                return key, node[key]
+    if kind == "index" and isinstance(node, list) and isinstance(value, int) and 0 <= value < len(node):
+        return value, node[value]
+    raise KeyError(f"YAML entry not found: {step}")
+
+
+def yaml_value_at(data: Any, locator: list[list[Any]]) -> tuple[Any, Any, Any]:
+    """Return (parent container, key or index in parent, value) for a locator."""
+    parent, slot, node = None, None, data
+    for step in locator:
+        parent = node
+        slot, node = yaml_child(node, step)
+    return parent, slot, node
+
+
+def update_yaml_prompt(item: dict[str, Any], new_prompt: str) -> None:
+    """Write a new prompt into the item's YAML file, keeping comments and block styles."""
+    try:
+        from ruamel.yaml import YAML
+        from ruamel.yaml.scalarstring import LiteralScalarString, ScalarString
+    except ImportError as exc:
+        raise RuntimeError("Editing EPS prompts requires ruamel.yaml. Restart WebUI to install it, or run: pip install ruamel.yaml") from exc
+
+    locator = item.get("yaml_locator") or []
+    source_path = str(item.get("source_path") or "")
+    if not item.get("prompt_editable") or not locator or not source_path:
+        raise ValueError("This EPS entry cannot be edited.")
+
+    path = Path(source_path)
+    raw = path.read_bytes()
+    # ruamel keeps "\r" inside comments, so work in LF and restore the file's line endings on write.
+    text = raw.decode("utf-8-sig").replace("\r\n", "\n")
+    newline = "\r\n" if b"\r\n" in raw else "\n"
+
+    def render(mapping: int, sequence: int, offset: int) -> str:
+        rt = YAML()
+        rt.preserve_quotes = True
+        rt.width = 4096
+        rt.indent(mapping=mapping, sequence=sequence, offset=offset)
+        data = rt.load(text)
+        parent, slot, current = yaml_value_at(data, locator)
+        current_prompt = str(current or (str(locator[-1][1]) if locator[-1][0] == "key" else ""))
+        if current_prompt != item.get("prompt", ""):
+            raise RuntimeError(f"{path.name} changed on disk. Reload Visual EPS and try again.")
+        if isinstance(current, LiteralScalarString) or "\n" in new_prompt:
+            parent[slot] = LiteralScalarString(new_prompt)
+        elif isinstance(current, ScalarString):
+            parent[slot] = type(current)(new_prompt)
+        else:
+            parent[slot] = new_prompt
+        buffer = io.StringIO()
+        rt.dump(data, buffer)
+        return buffer.getvalue()
+
+    # ruamel re-indents the whole document, and its indent guess is unreliable,
+    # so render with common layouts and keep the one that changes the fewest lines.
+    original_lines = text.splitlines()
+
+    def changed_lines(output: str) -> int:
+        matcher = difflib.SequenceMatcher(None, original_lines, output.splitlines(), autojunk=False)
+        return sum(max(i2 - i1, j2 - j1) for tag, i1, i2, j1, j2 in matcher.get_opcodes() if tag != "equal")
+
+    layouts = [(m, s, o) for m in (2, 4) for s in (2, 4) for o in (0, 2) if o < s]
+    output = min((render(*layout) for layout in layouts), key=changed_lines)
+
+    _, _, written = yaml_value_at(yaml.safe_load(output), locator)
+    if str(written) != new_prompt:
+        raise RuntimeError(f"Could not write the prompt to {path.name} safely; the file was not changed.")
+    path.write_text(output, encoding="utf-8", newline=newline)
+
+
+def rename_image_mapping_prompt(old_prompt: str, new_prompt: str) -> None:
+    """Keep image_mapping.json entries attached when a prompt is edited, so cleanup does not delete them."""
+    old_key, new_key = old_prompt.strip(), new_prompt.strip()
+    if not old_key or not new_key or old_key == new_key:
+        return
+    for mapping_name in IMAGE_MAPPING_NAMES:
+        for mapping_path in PREVIEWS_DIR.rglob(mapping_name):
+            if "_original_backup" in mapping_path.relative_to(PREVIEWS_DIR).parts:
+                continue
+            try:
+                mapping = json.loads(mapping_path.read_text(encoding="utf-8-sig"))
+            except Exception as exc:
+                log(f"failed to load image mapping {mapping_path}: {exc}")
+                continue
+            if not isinstance(mapping, dict):
+                continue
+            old_entry = next((key for key in mapping if str(key).strip() == old_key), None)
+            if old_entry is None or any(str(key).strip() == new_key for key in mapping):
+                continue
+            renamed = {(new_key if key == old_entry else key): value for key, value in mapping.items()}
+            mapping_path.write_text(json.dumps(renamed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 def stable_ids(items: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -829,6 +945,13 @@ async def api_request_load(request: Request):
     return JSONReply(status)
 
 
+def find_item_by_location(items: dict[str, dict[str, Any]], source_path: str, locator: list[list[Any]]) -> dict[str, Any] | None:
+    for item in items.values():
+        if item.get("source_path") == source_path and item.get("yaml_locator") == locator:
+            return item
+    return None
+
+
 def api_get_item(request: Request):
     try:
         item_id = request.query_params.get("id", "")
@@ -850,6 +973,22 @@ async def api_save_item(request: Request):
             return JSONReply({"error": "Item not found"}, status_code=404)
 
         metadata = load_metadata()
+
+        new_prompt = payload.get("prompt")
+        if isinstance(new_prompt, str):
+            new_prompt = new_prompt.replace("\r\n", "\n")
+            if new_prompt != item["prompt"]:
+                if not new_prompt.strip():
+                    return JSONReply({"error": "The EPS prompt cannot be empty."}, status_code=400)
+                update_yaml_prompt(item, new_prompt)
+                rename_image_mapping_prompt(item["prompt"], new_prompt)
+                # List-style entries use the prompt in their id, so carry the metadata over to the new id.
+                updated = find_item_by_location(visual_eps_item_map(), item["source_path"], item["yaml_locator"])
+                if updated:
+                    if updated["id"] != item_id and item_id in metadata:
+                        metadata[updated["id"]] = metadata.pop(item_id)
+                    item, item_id = updated, updated["id"]
+
         existing = metadata.get(item_id, {})
         entry = metadata_entry_for_save(payload, existing)
 
@@ -864,7 +1003,7 @@ async def api_save_item(request: Request):
         elif item_id in metadata:
             del metadata[item_id]
         save_metadata(metadata)
-        return JSONReply({"ok": True, "metadata": metadata.get(item_id, {})})
+        return JSONReply({"ok": True, "id": item_id, "metadata": metadata.get(item_id, {})})
     except Exception as exc:
         log(f"api_save_item failed: {exc}")
         return JSONReply({"error": str(exc)}, status_code=500)

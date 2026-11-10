@@ -2,7 +2,7 @@
 
 Visual Easy Prompt Selector is an extension for Stable Diffusion WebUI, Forge, and reForge. It displays Easy Prompt Selector YAML entries as searchable visual cards in the Extra Networks panel.
 
-The extension reads Easy Prompt Selector files in read-only mode. It does not edit your original YAML files.
+The prompt of a card can be edited from `Prompt edit`. The change is written back to the YAML file under `eps_path`, keeping its comments and block styles (`|-`). Everything else you edit (display name, tags, notes, prompt additions, preview images) is stored in this extension folder.
 
 ## Introduction
 
@@ -15,6 +15,7 @@ dr1610さん開発の "Visual Easy Prompt Selector" の個人的なフォーク�
 - Reads `.yml` and `.yaml` files from Easy Prompt Selector folders.
 - Converts nested YAML entries into searchable prompt cards.
 - Inserts the selected prompt into the active prompt box.
+- Edits a card's prompt and saves it back to its YAML file (requires `ruamel.yaml`, installed automatically by `install.py`).
 - Supports text search, category filtering, tag filtering, AND/OR search, and image/no-image filtering.
 - Supports optional preview images.
 - Stores local display names, tags, notes, prompt additions, and preview-image links in this extension folder.
@@ -199,15 +200,15 @@ The recommended preview size is around 128-256 px. Keep original large images ou
 
 ## Files Written by This Extension
 
-Visual EPS writes only inside its own extension folder:
+Visual EPS writes these files:
 
 - `config.json`
 - `visual_esp_metadata.json`
 - `eps/previews/`
+- YAML files under `eps_path`, only when you edit a card's prompt
 
 It does not modify:
 
-- Easy Prompt Selector YAML files
 - model files
 - LoRA files
 - other extensions
