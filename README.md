@@ -248,7 +248,7 @@ Restart WebUI and hard-refresh the browser with `Ctrl + F5`.
 
 ## Credits
 
-- **[sd-civitai-browser](https://github.com/dr1610/visual-easy-prompt-selector)**  dr1610 — original project
+- **[visual-easy-prompt-selector](https://github.com/dr1610/visual-easy-prompt-selector)**  dr1610 — original project
 
 ## License
 
