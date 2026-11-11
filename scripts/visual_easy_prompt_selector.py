@@ -36,18 +36,8 @@ FUZZY_PREVIEW_SCAN_LIMIT = 2000
 DEFAULT_CONFIG = {
     "eps_dir": "eps",
     "append_separator": ", ",
-    "default_insert_target": "prompt",
-    "enable_txt2img": True,
-    "enable_img2img": True,
-    "enable_category_tree": True,
     "load_mode": "on_tab_open",
     "max_tree_leaf_items": 5000,
-    "enable_tag_filter": True,
-    "enable_image_preview": True,
-    "enable_multi_select": True,
-    "avoid_duplicate_insert": True,
-    "thumbnail_size": 160,
-    "auto_insert_negative": False,
     "auto_remove_orphaned_mapped_previews": True,
 }
 
