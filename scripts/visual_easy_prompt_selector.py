@@ -40,7 +40,7 @@ DEFAULT_CONFIG = {
     # Delete images in <eps_dir>/previews that no current EPS prompt uses.
     "auto_remove_unused_previews": True,
     # Longest side (px) of preview images uploaded from Prompt edit, and the resize tool's default.
-    "preview_max_size": 256,
+    "preview_max_size": 384,
 }
 
 

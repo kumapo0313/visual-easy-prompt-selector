@@ -627,7 +627,7 @@
       status.textContent = "Saving...";
       try {
         const file = form.elements.image.files[0];
-        const imagePayload = await resizeImageFileAsDataUrl(file, previewMaxSize || 256);
+        const imagePayload = await resizeImageFileAsDataUrl(file, previewMaxSize || 384);
         await saveItem({
           id,
           ...(item.prompt_editable ? { prompt: form.elements.prompt.value } : {}),
