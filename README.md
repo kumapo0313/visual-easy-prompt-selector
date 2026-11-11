@@ -142,35 +142,20 @@ Place images under:
 previews/
 ```
 
-You can map prompt text to image filenames with `image_mapping.json`:
-
-```json
-{
-  "smile": "smile_example.png",
-  "long hair": "long_hair_example.png"
-}
-```
-
-Recommended structure:
-
-```text
-previews/imported/
-  image_mapping.json
-  smile_example.png
-  long_hair_example.png
-```
-
 If a prompt has no preview image, Visual EPS will show a normal card without a custom preview.
 
-When a prompt is removed from the Easy Prompt Selector YAML files, Visual EPS also removes the matching entry from `image_mapping.json`. If that mapping pointed to a preview image that is not used by any remaining prompt or metadata entry, the image is deleted.
+Images set from Prompt edit are saved in `<eps_dir>/previews/`. Visual EPS deletes images there that no current prompt uses:
 
-This keeps deleted EPS folders from leaving unused Visual EPS images behind. The files are permanently deleted without a backup, so disable this behavior if you want to keep them.
+- When an image is replaced or cleared in Prompt edit, the old image is deleted unless another prompt still uses it.
+- When the library is loaded, images whose prompt was removed from the YAML files are deleted, and their metadata entries lose the image.
 
-To disable this behavior, set this in `config.json`:
+The cleanup is skipped when no prompts were loaded or a YAML file failed to load. Files are deleted permanently without a backup. Only images directly in `<eps_dir>/previews/` are touched; `previews/` in the extension folder is left alone.
+
+Editing a list-style prompt directly in the YAML changes its ID, so its image is treated as unused. Edit prompts from Prompt edit to keep their images. To disable the cleanup, set this in `config.json`:
 
 ```json
 {
-  "auto_remove_orphaned_mapped_previews": false
+  "auto_remove_unused_previews": false
 }
 ```
 
@@ -188,7 +173,7 @@ Use it when your `previews/` folder contains many large PNG/JPG images. The tool
 - Limit the number of files converted in one run.
 - Skip small files below a chosen KB threshold.
 - Back up original images before conversion.
-- Update `image_mapping.json`, Visual EPS metadata, and YAML image references from PNG/JPG to WebP.
+- Update Visual EPS metadata and YAML image references from PNG/JPG to WebP.
 
 This is optional. Visual EPS also works without preview images.
 

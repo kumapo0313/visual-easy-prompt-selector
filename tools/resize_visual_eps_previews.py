@@ -123,30 +123,6 @@ def rel_for(path: Path, base: Path) -> str:
     return path.resolve().relative_to(base.resolve()).as_posix()
 
 
-def update_mapping_file(mapping_path: Path, old_name_to_new_name: dict[str, str]) -> bool:
-    try:
-        data = json.loads(mapping_path.read_text(encoding="utf-8-sig"))
-    except Exception:
-        return False
-    if not isinstance(data, dict):
-        return False
-    changed = False
-    for key, value in list(data.items()):
-        value_text = str(value)
-        new_name = old_name_to_new_name.get(value_text)
-        if not new_name:
-            mapped_path = mapping_path.parent / value_text
-            fallback_webp = mapped_path.with_suffix(".webp")
-            if not mapped_path.exists() and fallback_webp.exists():
-                new_name = fallback_webp.name
-        if new_name:
-            data[key] = new_name
-            changed = True
-    if changed:
-        mapping_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
-    return changed
-
-
 def update_metadata(metadata_path: Path, old_rel_to_new_rel: dict[str, str]) -> bool:
     if not metadata_path.exists():
         return False
@@ -220,7 +196,6 @@ def convert_previews(options: ConvertOptions, progress: Callable[[str], None] | 
     messages: list[str] = []
     backup_root = unique_backup_root(previews_dir) if options.backup_originals and not options.dry_run else None
     old_rel_to_new_rel: dict[str, str] = {}
-    per_mapping_updates: dict[Path, dict[str, str]] = {}
 
     total = len(files)
     old_total = sum(path.stat().st_size for path in files)
@@ -233,10 +208,6 @@ def convert_previews(options: ConvertOptions, progress: Callable[[str], None] | 
         old_rel = rel_for(source, base_dir)
         new_rel = rel_for(target, base_dir)
         old_rel_to_new_rel[old_rel] = new_rel
-
-        mapping_path = source.parent / "image_mapping.json"
-        if mapping_path.exists():
-            per_mapping_updates.setdefault(mapping_path, {})[source.name] = target.name
 
         if options.dry_run:
             results.append(result)
@@ -263,9 +234,6 @@ def convert_previews(options: ConvertOptions, progress: Callable[[str], None] | 
             log(f"変換中: {index}/{total}")
 
     if not options.dry_run and options.update_refs:
-        for mapping_path, updates in per_mapping_updates.items():
-            if update_mapping_file(mapping_path, updates):
-                messages.append(f"参照を更新: {mapping_path.relative_to(base_dir)}")
         metadata_path = config_eps_dir(base_dir) / METADATA_FILENAME
         if update_metadata(metadata_path, old_rel_to_new_rel):
             messages.append(f"参照を更新: {metadata_path}")
@@ -340,7 +308,7 @@ def run_gui() -> None:
     tk.Checkbutton(frame, text="既存WebPも再変換する", variable=include_webp_var).grid(row=4, column=0, columnspan=2, sticky="w", pady=(10, 0))
     tk.Checkbutton(frame, text="置換前に元画像をバックアップする", variable=backup_var).grid(row=5, column=0, columnspan=2, sticky="w")
     tk.Checkbutton(frame, text="WebP変換後に元のPNG/JPGを削除する", variable=remove_var).grid(row=6, column=0, columnspan=2, sticky="w")
-    tk.Checkbutton(frame, text="image_mapping.json / metadata / YAML の画像パスを更新する", variable=refs_var).grid(row=7, column=0, columnspan=3, sticky="w")
+    tk.Checkbutton(frame, text="metadata / YAML の画像パスを更新する", variable=refs_var).grid(row=7, column=0, columnspan=3, sticky="w")
 
     output = scrolledtext.ScrolledText(frame, height=20)
     output.grid(row=10, column=0, columnspan=4, sticky="nsew", pady=(12, 0))

@@ -30,7 +30,6 @@ METADATA_FILENAME = "visual_eps_metadata.json"
 EPS_PREVIEWS_DIRNAME = "previews"
 PREVIEWS_DIR = BASE_DIR / "previews"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
-IMAGE_MAPPING_NAMES = ("image_mapping.json",)
 FUZZY_PREVIEW_SCAN_LIMIT = 2000
 
 DEFAULT_CONFIG = {
@@ -38,7 +37,8 @@ DEFAULT_CONFIG = {
     "append_separator": ", ",
     "load_mode": "on_tab_open",
     "max_tree_leaf_items": 5000,
-    "auto_remove_orphaned_mapped_previews": True,
+    # Delete images in <eps_dir>/previews that no current EPS prompt uses.
+    "auto_remove_unused_previews": True,
     # Longest side (px) of preview images uploaded from Prompt edit, and the resize tool's default.
     "preview_max_size": 256,
 }
@@ -210,7 +210,7 @@ def walk_yaml(
             items.append(make_item(path_parts + [text], text, source_file, []))
 
 
-def load_eps_items(config: dict[str, Any]) -> list[dict[str, str]]:
+def load_eps_items(config: dict[str, Any], failed_files: list[Path] | None = None) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
     for path in yaml_files(eps_prompts_dir(config)):
         try:
@@ -224,129 +224,97 @@ def load_eps_items(config: dict[str, Any]) -> list[dict[str, str]]:
                 item["source_path"] = str(path)
         except Exception as exc:
             log(f"skipped YAML {path}: {exc}")
+            if failed_files is not None:
+                failed_files.append(path)
 
     return stable_ids(items)
 
 
-def path_is_inside(path: Path, parent: Path) -> bool:
-    try:
-        path.resolve().relative_to(parent.resolve())
-        return True
-    except ValueError:
-        return False
-
-
-def resolve_mapped_preview(mapping_path: Path, filename: str) -> Path | None:
-    filename_text = str(filename or "").strip()
-    if not filename_text:
+def managed_preview_path(image_text: str, config: dict[str, Any]) -> Path | None:
+    """Resolve a metadata image path, but only when it is an image directly inside <eps_dir>/previews."""
+    text = str(image_text or "").strip()
+    if not text:
         return None
-    image_path = (mapping_path.parent / filename_text).resolve()
-    if image_path.suffix.lower() not in IMAGE_EXTENSIONS:
+    path = resolve_path(text, BASE_DIR).resolve()
+    if path.suffix.lower() not in IMAGE_EXTENSIONS:
         return None
-    if not path_is_inside(image_path, PREVIEWS_DIR):
+    if path.parent != eps_previews_dir(config).resolve():
         return None
-    return image_path
+    return path
 
 
-def is_protected_preview_path(path: Path) -> bool:
-    try:
-        resolved = path.resolve()
-        if not resolved.exists():
-            return True
-        if not path_is_inside(resolved, PREVIEWS_DIR):
-            return True
-        relative = resolved.relative_to(PREVIEWS_DIR.resolve())
-        parts = set(relative.parts)
-        if "_original_backup" in parts:
-            return True
-        return False
-    except Exception:
-        return True
-
-
-def mapped_preview_files(mapping_path: Path, mapping: dict[str, Any], prompts: set[str]) -> set[Path]:
+def referenced_previews(metadata: dict[str, Any], config: dict[str, Any], ids: set[str] | None = None) -> set[Path]:
+    """Managed preview files referenced by metadata entries (only entries in ids, when given)."""
     files: set[Path] = set()
-    for prompt, filename in mapping.items():
-        if str(prompt).strip() not in prompts:
+    for item_id, entry in metadata.items():
+        if ids is not None and item_id not in ids:
             continue
-        image_path = resolve_mapped_preview(mapping_path, str(filename))
-        if image_path and image_path.exists():
-            files.add(image_path.resolve())
+        if isinstance(entry, dict):
+            path = managed_preview_path(entry.get("image", ""), config)
+            if path:
+                files.add(path)
     return files
 
 
-def metadata_preview_files(metadata: dict[str, Any]) -> set[Path]:
-    files: set[Path] = set()
-    for entry in metadata.values():
-        if not isinstance(entry, dict):
-            continue
-        image_text = str(entry.get("image") or "").strip()
-        if not image_text:
-            continue
-        image_path = (BASE_DIR / image_text).resolve()
-        if image_path.suffix.lower() in IMAGE_EXTENSIONS and image_path.exists() and path_is_inside(image_path, PREVIEWS_DIR):
-            files.add(image_path)
-    return files
-
-
-def cleanup_orphaned_mapped_previews(raw_items: list[dict[str, str]], metadata: dict[str, Any], config: dict[str, Any]) -> None:
-    if not config.get("auto_remove_orphaned_mapped_previews", True):
+def delete_preview_if_unused(image_text: str, metadata: dict[str, Any], config: dict[str, Any]) -> None:
+    """Delete a replaced or cleared preview image unless another metadata entry still uses it."""
+    if not config.get("auto_remove_unused_previews", True):
         return
-
-    active_prompts = {str(item.get("prompt", "")).strip() for item in raw_items if str(item.get("prompt", "")).strip()}
-    if not active_prompts:
-        log("auto cleanup skipped because no EPS prompts were loaded")
+    path = managed_preview_path(image_text, config)
+    if not path or not path.exists() or path in referenced_previews(metadata, config):
         return
-
-    removed_count = 0
-    changed_mappings = 0
-
     try:
-        protected_files = metadata_preview_files(metadata)
-        mapping_payloads: list[tuple[Path, dict[str, Any]]] = []
-        for mapping_name in IMAGE_MAPPING_NAMES:
-            for mapping_path in PREVIEWS_DIR.rglob(mapping_name):
-                if not path_is_inside(mapping_path, PREVIEWS_DIR):
-                    continue
-                relative_parts = set(mapping_path.relative_to(PREVIEWS_DIR).parts)
-                if "_original_backup" in relative_parts:
-                    continue
-                try:
-                    loaded = json.loads(mapping_path.read_text(encoding="utf-8-sig"))
-                except Exception as exc:
-                    log(f"failed to load image mapping for cleanup {mapping_path}: {exc}")
-                    continue
-                if isinstance(loaded, dict):
-                    mapping_payloads.append((mapping_path, loaded))
-                    protected_files.update(mapped_preview_files(mapping_path, loaded, active_prompts))
-
-        for mapping_path, mapping in mapping_payloads:
-            cleaned: dict[str, Any] = {}
-            mapping_changed = False
-
-            for prompt, filename in mapping.items():
-                prompt_key = str(prompt).strip()
-                if not prompt_key or prompt_key in active_prompts:
-                    cleaned[prompt] = filename
-                    continue
-
-                image_path = resolve_mapped_preview(mapping_path, str(filename))
-                if image_path and image_path.exists() and image_path.resolve() not in protected_files and not is_protected_preview_path(image_path):
-                    image_path.unlink()
-                    removed_count += 1
-                mapping_changed = True
-
-            if mapping_changed:
-                mapping_path.write_text(json.dumps(cleaned, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
-                changed_mappings += 1
-
-        if removed_count or changed_mappings:
-            log(
-                "auto removed orphaned mapped previews: "
-                f"{removed_count} image(s) deleted, {changed_mappings} mapping file(s) updated"
-            )
+        path.unlink()
+        log(f"deleted unused preview image: {path.name}")
     except Exception as exc:
-        log(f"auto cleanup of orphaned mapped previews failed: {exc}")
+        log(f"failed to delete unused preview image {path}: {exc}")
+
+
+def cleanup_unused_previews(
+    raw_items: list[dict[str, str]],
+    metadata: dict[str, Any],
+    config: dict[str, Any],
+    failed_files: list[Path],
+) -> None:
+    """Delete images in <eps_dir>/previews that no current EPS prompt uses.
+
+    Metadata entries whose prompt no longer exists lose their "image" (and are dropped when nothing else is left).
+    """
+    if not config.get("auto_remove_unused_previews", True):
+        return
+    if failed_files:
+        log("unused preview cleanup skipped because some EPS YAML files failed to load")
+        return
+    if not raw_items:
+        log("unused preview cleanup skipped because no EPS prompts were loaded")
+        return
+
+    try:
+        active_ids = {str(item["id"]) for item in raw_items}
+        keep = referenced_previews(metadata, config, active_ids)
+
+        metadata_changed = False
+        for item_id in [key for key in metadata if key not in active_ids]:
+            entry = metadata[item_id]
+            if isinstance(entry, dict) and "image" in entry:
+                del entry["image"]
+                metadata_changed = True
+                if not any(entry.values()):
+                    del metadata[item_id]
+        if metadata_changed:
+            save_metadata(metadata)
+
+        removed = 0
+        for path in eps_previews_dir(config).iterdir():
+            if not path.is_file() or path.suffix.lower() not in IMAGE_EXTENSIONS or path.resolve() in keep:
+                continue
+            path.unlink()
+            removed += 1
+            log(f"deleted unused preview image: {path.name}")
+        if removed:
+            log(f"auto removed {removed} unused preview image(s)")
+    except Exception as exc:
+        log(f"unused preview cleanup failed: {exc}")
 
 
 def yaml_child(node: Any, step: list[Any]) -> tuple[Any, Any]:
@@ -426,29 +394,6 @@ def update_yaml_prompt(item: dict[str, Any], new_prompt: str) -> None:
     path.write_text(output, encoding="utf-8", newline=newline)
 
 
-def rename_image_mapping_prompt(old_prompt: str, new_prompt: str) -> None:
-    """Keep image_mapping.json entries attached when a prompt is edited, so cleanup does not delete them."""
-    old_key, new_key = old_prompt.strip(), new_prompt.strip()
-    if not old_key or not new_key or old_key == new_key:
-        return
-    for mapping_name in IMAGE_MAPPING_NAMES:
-        for mapping_path in PREVIEWS_DIR.rglob(mapping_name):
-            if "_original_backup" in mapping_path.relative_to(PREVIEWS_DIR).parts:
-                continue
-            try:
-                mapping = json.loads(mapping_path.read_text(encoding="utf-8-sig"))
-            except Exception as exc:
-                log(f"failed to load image mapping {mapping_path}: {exc}")
-                continue
-            if not isinstance(mapping, dict):
-                continue
-            old_entry = next((key for key in mapping if str(key).strip() == old_key), None)
-            if old_entry is None or any(str(key).strip() == new_key for key in mapping):
-                continue
-            renamed = {(new_key if key == old_entry else key): value for key, value in mapping.items()}
-            mapping_path.write_text(json.dumps(renamed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
-
-
 def stable_ids(items: list[dict[str, str]]) -> list[dict[str, str]]:
     counts: dict[str, int] = {}
     for item in items:
@@ -495,38 +440,6 @@ def preview_image_index() -> dict[str, str]:
     return index
 
 
-def load_image_mapping() -> dict[str, str]:
-    mapping: dict[str, str] = {}
-    try:
-        for mapping_name in IMAGE_MAPPING_NAMES:
-            for path in PREVIEWS_DIR.rglob(mapping_name):
-                try:
-                    loaded = json.loads(path.read_text(encoding="utf-8-sig"))
-                except Exception as exc:
-                    log(f"failed to load image mapping {path}: {exc}")
-                    continue
-                if not isinstance(loaded, dict):
-                    continue
-                base_dir = path.parent
-                for prompt, filename in loaded.items():
-                    prompt_key = str(prompt).strip()
-                    filename_text = str(filename).strip()
-                    if not prompt_key or not filename_text:
-                        continue
-                    image_path = (base_dir / filename_text).resolve()
-                    base_path = BASE_DIR.resolve()
-                    try:
-                        rel_path = image_path.relative_to(base_path)
-                    except ValueError:
-                        continue
-                    if image_path.suffix.lower() not in IMAGE_EXTENSIONS or not image_path.exists():
-                        continue
-                    mapping[prompt_key] = rel_path.as_posix()
-    except Exception as exc:
-        log(f"image mapping scan failed: {exc}")
-    return mapping
-
-
 def find_preview_image(item: dict[str, str], image_index: dict[str, str]) -> str:
     candidates = [
         item.get("raw_path", ""),
@@ -539,7 +452,7 @@ def find_preview_image(item: dict[str, str], image_index: dict[str, str]) -> str
         if candidate in image_index:
             return image_index[candidate]
     # A fuzzy all-pairs scan becomes prohibitively expensive for large EPS and
-    # preview libraries. Explicit image mappings and exact filename matches above
+    # preview libraries. Metadata images and exact filename matches above
     # remain available regardless of library size.
     if len(image_index) > FUZZY_PREVIEW_SCAN_LIMIT:
         return ""
@@ -553,7 +466,6 @@ def merge_metadata(
     item: dict[str, str],
     metadata: dict[str, Any],
     image_index: dict[str, str],
-    image_mapping: dict[str, str],
 ) -> dict[str, Any]:
     meta = metadata.get(item["id"], {})
     if not isinstance(meta, dict):
@@ -566,7 +478,7 @@ def merge_metadata(
     merged["append_negative"] = meta.get("append_negative") or ""
     merged["tags"] = meta.get("tags") if isinstance(meta.get("tags"), list) else []
     merged["memo"] = meta.get("memo") or ""
-    merged["image"] = meta.get("image") or image_mapping.get(str(item.get("prompt", "")).strip(), "") or find_preview_image(item, image_index)
+    merged["image"] = meta.get("image") or find_preview_image(item, image_index)
     return merged
 
 
@@ -594,11 +506,11 @@ def search_blob(item: dict[str, Any]) -> str:
 def load_visual_eps_cards() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     config = load_config()
     metadata = load_metadata()
-    raw_items = load_eps_items(config)
-    cleanup_orphaned_mapped_previews(raw_items, metadata, config)
+    failed_files: list[Path] = []
+    raw_items = load_eps_items(config, failed_files)
+    cleanup_unused_previews(raw_items, metadata, config, failed_files)
     image_index = preview_image_index()
-    image_mapping = load_image_mapping()
-    return [merge_metadata(item, metadata, image_index, image_mapping) for item in raw_items], config
+    return [merge_metadata(item, metadata, image_index) for item in raw_items], config
 
 
 def visual_eps_item_map() -> dict[str, dict[str, Any]]:
@@ -993,7 +905,6 @@ async def api_save_item(request: Request):
                 if not new_prompt.strip():
                     return JSONReply({"error": "The EPS prompt cannot be empty."}, status_code=400)
                 update_yaml_prompt(item, new_prompt)
-                rename_image_mapping_prompt(item["prompt"], new_prompt)
                 # List-style entries use the prompt in their id, so carry the metadata over to the new id.
                 updated = find_item_by_location(visual_eps_item_map(), item["source_path"], item["yaml_locator"])
                 if updated:
@@ -1002,6 +913,7 @@ async def api_save_item(request: Request):
                     item, item_id = updated, updated["id"]
 
         existing = metadata.get(item_id, {})
+        old_image = str(existing.get("image") or "") if isinstance(existing, dict) else ""
         entry = metadata_entry_for_save(payload, existing)
 
         data_url = str(payload.get("image_data_url") or "")
@@ -1015,6 +927,8 @@ async def api_save_item(request: Request):
         elif item_id in metadata:
             del metadata[item_id]
         save_metadata(metadata)
+        if old_image and old_image != str(metadata.get(item_id, {}).get("image") or ""):
+            delete_preview_if_unused(old_image, metadata, load_config())
         return JSONReply({"ok": True, "id": item_id, "metadata": metadata.get(item_id, {})})
     except Exception as exc:
         log(f"api_save_item failed: {exc}")
