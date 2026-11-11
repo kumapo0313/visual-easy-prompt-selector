@@ -253,9 +253,9 @@ def convert_previews(options: ConvertOptions, progress: Callable[[str], None] | 
         for mapping_path, updates in per_mapping_updates.items():
             if update_mapping_file(mapping_path, updates):
                 messages.append(f"参照を更新: {mapping_path.relative_to(base_dir)}")
-        for metadata_path in (config_eps_dir(base_dir) / METADATA_FILENAME, base_dir / METADATA_FILENAME):
-            if update_metadata(metadata_path, old_rel_to_new_rel):
-                messages.append(f"参照を更新: {metadata_path}")
+        metadata_path = config_eps_dir(base_dir) / METADATA_FILENAME
+        if update_metadata(metadata_path, old_rel_to_new_rel):
+            messages.append(f"参照を更新: {metadata_path}")
         yaml_changed = update_yaml_refs(base_dir, old_rel_to_new_rel)
         if yaml_changed:
             messages.append(f"YAML参照を更新: {yaml_changed} ファイル")

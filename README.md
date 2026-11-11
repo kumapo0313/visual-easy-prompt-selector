@@ -113,7 +113,6 @@ To move the whole folder, edit `config.json`:
 
 - `eps_dir` is relative to the Visual EPS extension folder, or an absolute path. The `prompts/`, `previews/` and `visual_eps_metadata.json` names inside it are fixed.
 - After changing `eps_dir`, move the existing folder contents yourself and restart WebUI.
-- The older `eps_path` / `eps_paths` / `esp_paths` settings are no longer used. Move those YAML files into `<eps_dir>/prompts/`.
 
 ## Load Timing
 

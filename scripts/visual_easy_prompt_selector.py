@@ -28,10 +28,6 @@ CONFIG_PATH = BASE_DIR / "config.json"
 EPS_PROMPTS_DIRNAME = "prompts"
 METADATA_FILENAME = "visual_eps_metadata.json"
 EPS_PREVIEWS_DIRNAME = "previews"
-# Older config keys for the YAML folder; the folder is now always <eps_dir>/prompts.
-LEGACY_EPS_PATH_KEYS = ("eps_path", "eps_paths", "esp_paths")
-# Older versions kept the metadata in the extension root; it is moved under eps_dir on startup.
-LEGACY_METADATA_PATH = BASE_DIR / METADATA_FILENAME
 PREVIEWS_DIR = BASE_DIR / "previews"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 IMAGE_MAPPING_NAMES = ("image_mapping.json",)
@@ -100,11 +96,7 @@ def ensure_files(config: dict[str, Any]) -> None:
         metadata = metadata_path(config)
         if not metadata.exists():
             metadata.parent.mkdir(parents=True, exist_ok=True)
-            if LEGACY_METADATA_PATH.exists() and LEGACY_METADATA_PATH.resolve() != metadata.resolve():
-                LEGACY_METADATA_PATH.replace(metadata)
-                log(f"moved {LEGACY_METADATA_PATH.name} to {metadata}")
-            else:
-                metadata.write_text("{}", encoding="utf-8", newline="\n")
+            metadata.write_text("{}", encoding="utf-8", newline="\n")
     except Exception as exc:
         log(f"startup file generation failed: {exc}")
 
@@ -129,9 +121,6 @@ def load_config() -> dict[str, Any]:
     loaded = load_json(CONFIG_PATH, {})
     if isinstance(loaded, dict):
         config.update(loaded)
-        legacy_keys = [key for key in LEGACY_EPS_PATH_KEYS if key in loaded]
-        if legacy_keys:
-            log(f"ignored {', '.join(legacy_keys)} in config.json; EPS YAML files are read from {eps_prompts_dir(config)}")
     ensure_files(config)
     return config
 
