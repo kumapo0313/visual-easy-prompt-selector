@@ -14,6 +14,18 @@ from PIL import Image, ImageOps
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SKIP_DIR_NAMES = {"_original_backup", "__pycache__"}
+METADATA_FILENAME = "visual_eps_metadata.json"
+
+
+def config_eps_dir(base_dir: Path) -> Path:
+    """The "eps_dir" folder from config.json, where Visual EPS keeps its metadata."""
+    try:
+        config = json.loads((base_dir / "config.json").read_text(encoding="utf-8-sig"))
+    except Exception:
+        config = {}
+    path_text = str(config.get("eps_dir") or "").strip() if isinstance(config, dict) else ""
+    path = Path(path_text or "eps")
+    return path if path.is_absolute() else base_dir / path
 
 
 @dataclass
@@ -241,10 +253,9 @@ def convert_previews(options: ConvertOptions, progress: Callable[[str], None] | 
         for mapping_path, updates in per_mapping_updates.items():
             if update_mapping_file(mapping_path, updates):
                 messages.append(f"参照を更新: {mapping_path.relative_to(base_dir)}")
-        for metadata_name in ("eps/visual_eps_metadata.json", "visual_eps_metadata.json"):
-            metadata_path = base_dir / metadata_name
+        for metadata_path in (config_eps_dir(base_dir) / METADATA_FILENAME, base_dir / METADATA_FILENAME):
             if update_metadata(metadata_path, old_rel_to_new_rel):
-                messages.append(f"参照を更新: {metadata_name}")
+                messages.append(f"参照を更新: {metadata_path}")
         yaml_changed = update_yaml_refs(base_dir, old_rel_to_new_rel)
         if yaml_changed:
             messages.append(f"YAML参照を更新: {yaml_changed} ファイル")

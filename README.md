@@ -2,7 +2,7 @@
 
 Visual Easy Prompt Selector is an extension for Stable Diffusion WebUI, Forge, and reForge. It displays Easy Prompt Selector YAML entries as searchable visual cards in the Extra Networks panel.
 
-The prompt of a card can be edited from `Prompt edit`. The change is written back to the YAML file under `eps_path`, keeping its comments and block styles (`|-`). Everything else you edit (display name, tags, notes, prompt additions, preview images) is stored in this extension folder.
+The prompt of a card can be edited from `Prompt edit`. The change is written back to the YAML file under `<eps_dir>/prompts`, keeping its comments and block styles (`|-`). Everything else you edit (display name, tags, notes, prompt additions, preview images) is stored in this extension folder.
 
 ## Introduction
 
@@ -92,19 +92,28 @@ If `Checkpoint`, `LoRA`, or `Visual EPS` appears blank:
 
 ## First Run
 
-By default, Visual EPS loads YAML files from the `eps` folder inside this extension.
+Visual EPS keeps its data in the `eps_dir` folder (default: `eps` inside this extension):
 
-To use another folder, edit `config.json`:
+```text
+eps/
+  prompts/                    <- Easy Prompt Selector YAML files
+  previews/                   <- images uploaded from Prompt edit
+  visual_eps_metadata.json    <- display names, tags, notes, image links
+```
+
+Put your Easy Prompt Selector YAML files in `prompts/`. All `.yml` / `.yaml` files in it, including subfolders, are loaded.
+
+To move the whole folder, edit `config.json`:
 
 ```json
 {
-  "eps_path": "../sdweb-easy-prompt-selector/tags"
+  "eps_dir": "eps"
 }
 ```
 
-`eps_path` takes a single folder. All `.yml` / `.yaml` files in it, including subfolders, are loaded. Relative paths are resolved from the Visual EPS extension folder.
-
-The older multi-folder `eps_paths` / `esp_paths` list is still read for compatibility, but only its first entry is used.
+- `eps_dir` is relative to the Visual EPS extension folder, or an absolute path. The `prompts/`, `previews/` and `visual_eps_metadata.json` names inside it are fixed.
+- After changing `eps_dir`, move the existing folder contents yourself and restart WebUI.
+- The older `eps_path` / `eps_paths` / `esp_paths` settings are no longer used. Move those YAML files into `<eps_dir>/prompts/`.
 
 ## Load Timing
 
@@ -203,9 +212,9 @@ The recommended preview size is around 128-256 px. Keep original large images ou
 Visual EPS writes these files:
 
 - `config.json`
-- `eps/visual_eps_metadata.json`
-- `eps/previews/`
-- YAML files under `eps_path`, only when you edit a card's prompt
+- `<eps_dir>/visual_eps_metadata.json`
+- `<eps_dir>/previews/`
+- YAML files under `<eps_dir>/prompts/`, only when you edit a card's prompt
 
 It does not modify:
 
@@ -216,9 +225,9 @@ It does not modify:
 
 ## Troubleshooting
 
-### The tab only shows sample prompts
+### The tab shows no prompts
 
-Check `config.json`. If `eps_path` points to `sample_eps`, change it to your Easy Prompt Selector folder.
+Put your Easy Prompt Selector YAML files in `<eps_dir>/prompts/` (default: `eps/prompts/`). To try the bundled samples, copy the files from `sample_eps/` there.
 
 You can also delete `config.json` and restart WebUI to let Visual EPS regenerate it.
 

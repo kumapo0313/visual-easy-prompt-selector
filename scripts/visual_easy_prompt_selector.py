@@ -24,17 +24,21 @@ JSONReply = getattr(importlib.import_module("fastapi.res" + "ponses"), "JSON" + 
 EXTENSION_NAME = "visual-easy-prompt-selector"
 BASE_DIR = Path(basedir())
 CONFIG_PATH = BASE_DIR / "config.json"
-METADATA_PATH = BASE_DIR / "eps" / "visual_eps_metadata.json"
-# Older versions kept the metadata in the extension root; it is moved to METADATA_PATH on startup.
-LEGACY_METADATA_PATH = BASE_DIR / "visual_eps_metadata.json"
+# Files kept under the "eps_dir" folder of config.json.
+EPS_PROMPTS_DIRNAME = "prompts"
+METADATA_FILENAME = "visual_eps_metadata.json"
+EPS_PREVIEWS_DIRNAME = "previews"
+# Older config keys for the YAML folder; the folder is now always <eps_dir>/prompts.
+LEGACY_EPS_PATH_KEYS = ("eps_path", "eps_paths", "esp_paths")
+# Older versions kept the metadata in the extension root; it is moved under eps_dir on startup.
+LEGACY_METADATA_PATH = BASE_DIR / METADATA_FILENAME
 PREVIEWS_DIR = BASE_DIR / "previews"
-EPS_PREVIEWS_DIR = BASE_DIR / "eps" / "previews"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 IMAGE_MAPPING_NAMES = ("image_mapping.json",)
 FUZZY_PREVIEW_SCAN_LIMIT = 2000
 
 DEFAULT_CONFIG = {
-    "eps_path": "eps",
+    "eps_dir": "eps",
     "append_separator": ", ",
     "default_insert_target": "prompt",
     "enable_txt2img": True,
@@ -56,19 +60,51 @@ def log(message: str) -> None:
     print(f"[Visual Easy Prompt Selector / Visual EPS] {message}")
 
 
-def ensure_files() -> None:
+def resolve_path(path_text: str, base: Path) -> Path:
+    path = Path(path_text)
+    return path if path.is_absolute() else base / path
+
+
+def config_eps_dir(config: dict[str, Any]) -> Path:
+    """Folder that holds the prompts, previews and metadata. Relative to the extension folder."""
+    path_text = str(config.get("eps_dir") or "").strip() or DEFAULT_CONFIG["eps_dir"]
+    return resolve_path(path_text, BASE_DIR)
+
+
+def eps_prompts_dir(config: dict[str, Any]) -> Path:
+    """Folder with the EPS YAML files."""
+    return config_eps_dir(config) / EPS_PROMPTS_DIRNAME
+
+
+def metadata_path(config: dict[str, Any]) -> Path:
+    return config_eps_dir(config) / METADATA_FILENAME
+
+
+def eps_previews_dir(config: dict[str, Any]) -> Path:
+    return config_eps_dir(config) / EPS_PREVIEWS_DIRNAME
+
+
+def stored_path(path: Path) -> str:
+    """Path saved in the metadata: relative to the extension folder when inside it, absolute otherwise."""
+    try:
+        return path.resolve().relative_to(BASE_DIR.resolve()).as_posix()
+    except ValueError:
+        return path.resolve().as_posix()
+
+
+def ensure_files(config: dict[str, Any]) -> None:
     try:
         PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
-        EPS_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
-        if not CONFIG_PATH.exists():
-            CONFIG_PATH.write_text(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
-        if not METADATA_PATH.exists():
-            METADATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-            if LEGACY_METADATA_PATH.exists():
-                LEGACY_METADATA_PATH.replace(METADATA_PATH)
-                log(f"moved {LEGACY_METADATA_PATH.name} to {METADATA_PATH.relative_to(BASE_DIR).as_posix()}")
+        eps_prompts_dir(config).mkdir(parents=True, exist_ok=True)
+        eps_previews_dir(config).mkdir(parents=True, exist_ok=True)
+        metadata = metadata_path(config)
+        if not metadata.exists():
+            metadata.parent.mkdir(parents=True, exist_ok=True)
+            if LEGACY_METADATA_PATH.exists() and LEGACY_METADATA_PATH.resolve() != metadata.resolve():
+                LEGACY_METADATA_PATH.replace(metadata)
+                log(f"moved {LEGACY_METADATA_PATH.name} to {metadata}")
             else:
-                METADATA_PATH.write_text("{}", encoding="utf-8", newline="\n")
+                metadata.write_text("{}", encoding="utf-8", newline="\n")
     except Exception as exc:
         log(f"startup file generation failed: {exc}")
 
@@ -84,49 +120,36 @@ def load_json(path: Path, fallback: Any) -> Any:
 
 
 def load_config() -> dict[str, Any]:
-    ensure_files()
+    if not CONFIG_PATH.exists():
+        try:
+            CONFIG_PATH.write_text(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
+        except Exception as exc:
+            log(f"failed to create config.json: {exc}")
     config = dict(DEFAULT_CONFIG)
     loaded = load_json(CONFIG_PATH, {})
     if isinstance(loaded, dict):
         config.update(loaded)
-        if "eps_path" not in loaded:
-            legacy_path = legacy_eps_path(loaded)
-            if legacy_path:
-                config["eps_path"] = legacy_path
+        legacy_keys = [key for key in LEGACY_EPS_PATH_KEYS if key in loaded]
+        if legacy_keys:
+            log(f"ignored {', '.join(legacy_keys)} in config.json; EPS YAML files are read from {eps_prompts_dir(config)}")
+    ensure_files(config)
     return config
 
 
-def legacy_eps_path(loaded: dict[str, Any]) -> str:
-    """Map the old multi-folder "eps_paths" / "esp_paths" list to the single "eps_path"."""
-    legacy = loaded.get("eps_paths", loaded.get("esp_paths"))
-    if not isinstance(legacy, list):
-        return ""
-    paths = [str(path).strip() for path in legacy if str(path).strip()]
-    if not paths:
-        return ""
-    if len(paths) > 1:
-        log(f'"eps_paths" now supports one folder; using "{paths[0]}" and ignoring {len(paths) - 1} other(s). Set "eps_path" in config.json.')
-    return paths[0]
-
-
 def load_metadata() -> dict[str, Any]:
-    ensure_files()
-    loaded = load_json(METADATA_PATH, {})
+    loaded = load_json(metadata_path(load_config()), {})
     return loaded if isinstance(loaded, dict) else {}
 
 
 def save_metadata(metadata: dict[str, Any]) -> None:
     try:
-        ensure_files()
-        METADATA_PATH.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
+        metadata_path(load_config()).write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
     except Exception as exc:
         log(f"failed to save metadata: {exc}")
         raise
 
 
-def yaml_files(root: Path | None) -> list[Path]:
-    if root is None:
-        return []
+def yaml_files(root: Path) -> list[Path]:
     try:
         if not root.exists():
             log(f"EPS path does not exist: {root}")
@@ -135,15 +158,6 @@ def yaml_files(root: Path | None) -> list[Path]:
     except Exception as exc:
         log(f"failed to scan EPS path {root}: {exc}")
         return []
-
-
-def config_eps_path(config: dict[str, Any]) -> Path | None:
-    path_text = str(config.get("eps_path") or "").strip()
-    if not path_text:
-        log('"eps_path" is not set in config.json')
-        return None
-    path = Path(path_text)
-    return path if path.is_absolute() else BASE_DIR / path
 
 
 def is_scalar(value: Any) -> bool:
@@ -209,7 +223,7 @@ def walk_yaml(
 
 def load_eps_items(config: dict[str, Any]) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
-    for path in yaml_files(config_eps_path(config)):
+    for path in yaml_files(eps_prompts_dir(config)):
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8-sig"))
             if data is None:
@@ -641,13 +655,14 @@ def save_image_data_url(data_url: str, original_name: str, item: dict[str, Any])
         raise ValueError("Image is too large")
 
     base_name = safe_filename(str(item.get("raw_path") or item.get("display_name") or item.get("id")))
-    target = EPS_PREVIEWS_DIR / f"{base_name}{ext}"
+    previews_dir = eps_previews_dir(load_config())
+    target = previews_dir / f"{base_name}{ext}"
     counter = 2
     while target.exists():
-        target = EPS_PREVIEWS_DIR / f"{base_name}_{counter}{ext}"
+        target = previews_dir / f"{base_name}_{counter}{ext}"
         counter += 1
     target.write_bytes(raw)
-    return target.relative_to(BASE_DIR).as_posix()
+    return stored_path(target)
 
 
 class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
@@ -903,8 +918,9 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
             log(f"Extra Networks list_items failed: {exc}")
 
     def allowed_directories_for_previews(self):
-        # EPS_PREVIEWS_DIR (uploaded card images) lives outside PREVIEWS_DIR, so Forge must be told to serve it too.
-        return [str(PREVIEWS_DIR), str(EPS_PREVIEWS_DIR)]
+        # Uploaded card images live in <eps_dir>/previews, outside PREVIEWS_DIR, so Forge must be told to serve it too.
+        # Forge reads this once at startup, so changing eps_dir needs a WebUI restart.
+        return [str(PREVIEWS_DIR), str(eps_previews_dir(load_config()))]
 
     def read_user_metadata(self, item, use_cache=True):
         # Visual EPS keeps its metadata in visual_eps_metadata.json. Forge's sidecar <filename>.json
