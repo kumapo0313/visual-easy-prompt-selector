@@ -524,7 +524,7 @@
     const response = await fetch(`/visual-eps/item?id=${encodeURIComponent(id)}`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Failed to load item");
-    return data.item;
+    return data;
   }
 
   function readFileAsDataUrl(file) {
@@ -541,7 +541,7 @@
   }
 
 
-  async function resizeImageFileAsDataUrl(file, maxSize = 800, quality = 0.84) {
+  async function resizeImageFileAsDataUrl(file, maxSize, quality = 0.84) {
     if (!file) return { dataUrl: "", name: "" };
     if (!file.type || !file.type.startsWith("image/")) {
       return { dataUrl: await readFileAsDataUrl(file), name: file.name || "preview" };
@@ -585,7 +585,7 @@
   async function openEdit(card, trigger) {
     const id = (trigger && trigger.dataset.vepsId) || card.dataset.vepsId;
     if (!id) throw new Error("Visual EPS item id is missing. Reload WebUI and try again.");
-    const item = await getItem(id);
+    const { item, preview_max_size: previewMaxSize } = await getItem(id);
     const form = document.createElement("form");
     form.className = "veps-edit-form";
     form.innerHTML = `
@@ -627,7 +627,7 @@
       status.textContent = "Saving...";
       try {
         const file = form.elements.image.files[0];
-        const imagePayload = await resizeImageFileAsDataUrl(file);
+        const imagePayload = await resizeImageFileAsDataUrl(file, previewMaxSize || 256);
         await saveItem({
           id,
           ...(item.prompt_editable ? { prompt: form.elements.prompt.value } : {}),

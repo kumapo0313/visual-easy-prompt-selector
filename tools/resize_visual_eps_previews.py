@@ -17,15 +17,28 @@ SKIP_DIR_NAMES = {"_original_backup", "__pycache__"}
 METADATA_FILENAME = "visual_eps_metadata.json"
 
 
-def config_eps_dir(base_dir: Path) -> Path:
-    """The "eps_dir" folder from config.json, where Visual EPS keeps its metadata."""
+def load_config(base_dir: Path) -> dict[str, Any]:
     try:
         config = json.loads((base_dir / "config.json").read_text(encoding="utf-8-sig"))
     except Exception:
-        config = {}
-    path_text = str(config.get("eps_dir") or "").strip() if isinstance(config, dict) else ""
+        return {}
+    return config if isinstance(config, dict) else {}
+
+
+def config_eps_dir(base_dir: Path) -> Path:
+    """The "eps_dir" folder from config.json, where Visual EPS keeps its metadata."""
+    path_text = str(load_config(base_dir).get("eps_dir") or "").strip()
     path = Path(path_text or "eps")
     return path if path.is_absolute() else base_dir / path
+
+
+def config_preview_max_size(base_dir: Path) -> int:
+    """The "preview_max_size" from config.json, used as the default max size."""
+    try:
+        size = int(load_config(base_dir).get("preview_max_size", 256))
+    except (TypeError, ValueError):
+        size = 256
+    return max(64, min(size, 1024))
 
 
 @dataclass
@@ -298,7 +311,7 @@ def run_gui() -> None:
     root.geometry("820x620")
 
     previews_var = tk.StringVar(value=str(default_previews))
-    max_var = tk.IntVar(value=256)
+    max_var = tk.IntVar(value=config_preview_max_size(base))
     quality_var = tk.IntVar(value=84)
     limit_var = tk.IntVar(value=50)
     min_kb_var = tk.IntVar(value=100)

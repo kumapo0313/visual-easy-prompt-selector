@@ -206,6 +206,14 @@ This release keeps the visual workflow while reducing the amount of work done in
 
 The recommended preview size is around 128-256 px. Keep original large images outside the extension folder, or use the backup option in the tool before conversion.
 
+`preview_max_size` in `config.json` (default `256`) sets the longest side in pixels of images uploaded from `Prompt edit`, and the default size of the resize tool:
+
+```json
+{
+  "preview_max_size": 256
+}
+```
+
 ## Files Written by This Extension
 
 Visual EPS writes these files:

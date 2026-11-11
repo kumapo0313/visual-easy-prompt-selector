@@ -39,6 +39,8 @@ DEFAULT_CONFIG = {
     "load_mode": "on_tab_open",
     "max_tree_leaf_items": 5000,
     "auto_remove_orphaned_mapped_previews": True,
+    # Longest side (px) of preview images uploaded from Prompt edit, and the resize tool's default.
+    "preview_max_size": 256,
 }
 
 
@@ -68,6 +70,14 @@ def metadata_path(config: dict[str, Any]) -> Path:
 
 def eps_previews_dir(config: dict[str, Any]) -> Path:
     return config_eps_dir(config) / EPS_PREVIEWS_DIRNAME
+
+
+def preview_max_size(config: dict[str, Any]) -> int:
+    try:
+        size = int(config.get("preview_max_size", DEFAULT_CONFIG["preview_max_size"]))
+    except (TypeError, ValueError):
+        size = DEFAULT_CONFIG["preview_max_size"]
+    return max(32, min(size, 4096))
 
 
 def stored_path(path: Path) -> str:
@@ -960,7 +970,7 @@ def api_get_item(request: Request):
         item = visual_eps_item_map().get(item_id)
         if not item:
             return JSONReply({"error": "Item not found"}, status_code=404)
-        return JSONReply({"item": item})
+        return JSONReply({"item": item, "preview_max_size": preview_max_size(load_config())})
     except Exception as exc:
         log(f"api_get_item failed: {exc}")
         return JSONReply({"error": str(exc)}, status_code=500)
