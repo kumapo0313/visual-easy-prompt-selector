@@ -831,10 +831,10 @@
     form.className = "veps-edit-form";
     form.innerHTML = `
       <label>Display name override<input name="display_name_override"></label>
-      <label><span class="veps-prompt-label">EPS prompt (saved to the YAML file)</span><textarea name="prompt"></textarea></label>
+      <label><span class="veps-label-row"><span class="veps-prompt-label">EPS prompt (saved to the YAML file)</span><button type="button" class="veps-insert-current" title="Insert the current positive prompt of this tab at the cursor">Insert current prompt</button></span><textarea name="prompt"></textarea></label>
       <label>Prompt to prepend on insert<textarea name="prepend_prompt" placeholder="e.g. masterpiece, best quality"></textarea></label>
       <label>Prompt to append on insert<textarea name="append_prompt" placeholder="e.g. detailed eyes, soft lighting"></textarea></label>
-      <label>Negative prompt to append<textarea name="append_negative" placeholder="e.g. low quality, bad anatomy"></textarea></label>
+      <label><span class="veps-label-row"><span>Negative prompt to append</span><button type="button" class="veps-insert-current-negative" title="Insert the current negative prompt of this tab at the cursor">Insert current negative</button></span><textarea name="append_negative" placeholder="e.g. low quality, bad anatomy"></textarea></label>
       <label>Tags<input name="tags" placeholder="e.g. hair, pose"></label>
       <label>Memo<textarea name="memo"></textarea></label>
       <label>Reference image<input name="image" type="file" accept="image/png,image/jpeg,image/webp"></label>
@@ -857,6 +857,23 @@
       form.elements.prompt.readOnly = true;
       q(".veps-prompt-label", form).textContent = "EPS prompt (read only)";
     }
+
+    // Insert the positive / negative prompt of this tab at the cursor (replacing the selection).
+    const bindInsertCurrent = (buttonSelector, field, which) => {
+      const button = q(buttonSelector, form);
+      button.disabled = field.readOnly;
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        const source = promptTextarea(pageForCard(card), which);
+        const text = source ? source.value : "";
+        if (field.readOnly || !text) return;
+        field.focus();
+        field.setRangeText(text, field.selectionStart, field.selectionEnd, "end");
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    bindInsertCurrent(".veps-insert-current", form.elements.prompt, "prompt");
+    bindInsertCurrent(".veps-insert-current-negative", form.elements.append_negative, "neg_prompt");
     form.elements.prepend_prompt.value = item.prepend_prompt || "";
     form.elements.append_prompt.value = item.append_prompt || "";
     form.elements.append_negative.value = item.append_negative || "";

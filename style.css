@@ -324,6 +324,35 @@
   font-size: 13px;
 }
 
+.veps-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.veps-insert-current,
+.veps-insert-current-negative {
+  padding: 2px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #1f2937;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.veps-insert-current:hover:not(:disabled),
+.veps-insert-current-negative:hover:not(:disabled) {
+  background: #cbd5e1;
+  border-color: #94a3b8;
+}
+
+.veps-insert-current:disabled,
+.veps-insert-current-negative:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .veps-edit-form input,
 .veps-edit-form textarea {
   width: 100%;
