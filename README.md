@@ -159,6 +159,18 @@ Editing a list-style prompt directly in the YAML changes its ID, so its image is
 }
 ```
 
+### Unused metadata
+
+When the library is loaded, Visual EPS deletes the entries in `visual_eps_metadata.json` (display names, tags, notes, prompt additions, image links) of prompts that were removed from the YAML files.
+
+The same safety rules as the image cleanup apply: it is skipped when no prompts were loaded or a YAML file failed to load. Entries are deleted permanently without a backup, including those of list-style prompts whose ID changed because they were edited directly in the YAML, and those of YAML files that are temporarily moved out of `prompts/`. To keep these entries, set this in `config.json`:
+
+```json
+{
+  "auto_remove_unused_metadata": false
+}
+```
+
 ## Performance Notes
 
 Visual EPS can become heavy if many high-resolution reference images are kept in `previews/` and rendered through Extra Networks.

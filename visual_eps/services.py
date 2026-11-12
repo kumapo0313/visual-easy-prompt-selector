@@ -221,6 +221,42 @@ def delete_preview_if_unused(image_text: str, metadata: dict[str, Any], config: 
         log(f"failed to delete unused preview image {path}: {exc}")
 
 
+def can_cleanup(raw_items: list[dict[str, str]], failed_files: list[Path], what: str) -> bool:
+    """Cleanups judge "unused" from the loaded prompts, so they only run after a complete, non-empty load."""
+    if failed_files:
+        log(f"{what} cleanup skipped because some EPS YAML files failed to load")
+        return False
+    if not raw_items:
+        log(f"{what} cleanup skipped because no EPS prompts were loaded")
+        return False
+    return True
+
+
+def cleanup_unused_metadata(
+    raw_items: list[dict[str, str]],
+    metadata: dict[str, Any],
+    config: dict[str, Any],
+    failed_files: list[Path],
+) -> None:
+    """Delete metadata entries whose prompt no longer exists in the EPS YAML files (on by default)."""
+    if not config.get("auto_remove_unused_metadata", True):
+        return
+    if not can_cleanup(raw_items, failed_files, "unused metadata"):
+        return
+
+    try:
+        active_ids = {str(item["id"]) for item in raw_items}
+        orphan_ids = [key for key in metadata if key not in active_ids]
+        if not orphan_ids:
+            return
+        for item_id in orphan_ids:
+            del metadata[item_id]
+        save_metadata(metadata)
+        log(f"auto removed {len(orphan_ids)} unused metadata entr{'y' if len(orphan_ids) == 1 else 'ies'}")
+    except Exception as exc:
+        log(f"unused metadata cleanup failed: {exc}")
+
+
 def cleanup_unused_previews(
     raw_items: list[dict[str, str]],
     metadata: dict[str, Any],
@@ -233,11 +269,7 @@ def cleanup_unused_previews(
     """
     if not config.get("auto_remove_unused_previews", True):
         return
-    if failed_files:
-        log("unused preview cleanup skipped because some EPS YAML files failed to load")
-        return
-    if not raw_items:
-        log("unused preview cleanup skipped because no EPS prompts were loaded")
+    if not can_cleanup(raw_items, failed_files, "unused preview"):
         return
 
     try:
@@ -318,6 +350,7 @@ def load_visual_eps_cards() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     metadata = load_metadata()
     failed_files: list[Path] = []
     raw_items = load_eps_items(config, failed_files)
+    cleanup_unused_metadata(raw_items, metadata, config, failed_files)
     cleanup_unused_previews(raw_items, metadata, config, failed_files)
     return [merge_metadata(item, metadata) for item in raw_items], config
 
