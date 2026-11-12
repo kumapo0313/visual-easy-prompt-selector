@@ -75,10 +75,11 @@
     return page && page.id ? page.id.replace(/_visual_eps$/, "") : "";
   }
 
-  // Forge moves #<tabname>_prompt into the page only with the Compact prompt layout, so look it up by id.
-  function positivePromptTextarea(page) {
+  // Forge moves #<tabname>_prompt / #<tabname>_neg_prompt into the page only with the Compact prompt layout,
+  // so look them up by id. which: "prompt" (positive) or "neg_prompt" (negative).
+  function promptTextarea(page, which) {
     const tabname = tabnameOfPage(page);
-    return tabname ? q(`#${tabname}_prompt textarea`) : null;
+    return tabname ? q(`#${tabname}_${which} textarea`) : null;
   }
 
   // Generate button. It clicks Forge's #<tabname>_generate. Forge keeps that button visible while generating
@@ -277,8 +278,8 @@
     if (negativeArea && negativePrompt) togglePromptText(negativeArea, negativePrompt);
   };
 
-  function clearPositivePrompt(page) {
-    const textarea = positivePromptTextarea(page);
+  function clearPrompt(page, which) {
+    const textarea = promptTextarea(page, which);
     if (!textarea) return;
     textarea.value = "";
     notifyInput(textarea);
@@ -533,6 +534,7 @@
       <div class="veps-load-row">
         <button type="button" class="veps-generate" title="Generate with this tab's settings">Generate</button>
         <button type="button" class="veps-clear-prompt" title="Clear the positive prompt of this tab">Clear prompt</button>
+        <button type="button" class="veps-clear-negative" title="Clear the negative prompt of this tab">Clear negative</button>
         <span class="veps-load-status">Checking load mode...</span>
         <button type="button" class="veps-load-button">Load Visual EPS</button>
       </div>
@@ -575,7 +577,12 @@
       }
       if (event.target.closest(".veps-clear-prompt")) {
         event.preventDefault();
-        clearPositivePrompt(page);
+        clearPrompt(page, "prompt");
+        return;
+      }
+      if (event.target.closest(".veps-clear-negative")) {
+        event.preventDefault();
+        clearPrompt(page, "neg_prompt");
         return;
       }
       const tagButton = event.target.closest("[data-tag]");

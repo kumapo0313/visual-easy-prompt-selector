@@ -136,6 +136,7 @@
 .veps-tag-list button,
 .veps-clear-filter,
 .veps-clear-prompt,
+.veps-clear-negative,
 .veps-card-tool {
   min-height: 28px;
   border: 1px solid rgba(148, 163, 184, 0.42);
@@ -186,19 +187,21 @@
   opacity: 0.72;
 }
 
-.veps-extra-toolbar .veps-load-row .veps-clear-prompt {
+.veps-extra-toolbar .veps-load-row .veps-clear-prompt,
+.veps-extra-toolbar .veps-load-row .veps-clear-negative {
   min-height: 32px;
-  border-color: rgba(248, 113, 113, 0.7);
+  border-color: #cbd5e1;
   padding: 6px 16px;
-  background: #b91c1c;
-  color: #ffffff;
+  background: #e2e8f0;
+  color: #1f2937;
   line-height: 1.2;
   white-space: nowrap;
 }
 
-.veps-extra-toolbar .veps-load-row .veps-clear-prompt:hover {
-  border-color: rgba(252, 165, 165, 0.9);
-  background: #991b1b;
+.veps-extra-toolbar .veps-load-row .veps-clear-prompt:hover,
+.veps-extra-toolbar .veps-load-row .veps-clear-negative:hover {
+  border-color: #94a3b8;
+  background: #cbd5e1;
 }
 
 .veps-active-filter {
