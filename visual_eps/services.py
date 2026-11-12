@@ -15,9 +15,7 @@ import yaml
 
 from .config import (
     BASE_DIR,
-    FUZZY_PREVIEW_SCAN_LIMIT,
     IMAGE_EXTENSIONS,
-    PREVIEWS_DIR,
     eps_previews_dir,
     eps_prompts_dir,
     load_config,
@@ -25,7 +23,7 @@ from .config import (
     stored_path,
 )
 from .entities import YamlLocator, make_item, metadata_entry_for_save, stable_ids
-from .utils import is_scalar, load_json, log, normalize_key, resolve_path, safe_filename, yaml_value_at
+from .utils import is_scalar, load_json, log, resolve_path, safe_filename, yaml_value_at
 
 
 class ItemNotFoundError(LookupError):
@@ -270,43 +268,6 @@ def cleanup_unused_previews(
         log(f"unused preview cleanup failed: {exc}")
 
 
-def preview_image_index() -> dict[str, str]:
-    index: dict[str, str] = {}
-    try:
-        for path in sorted(PREVIEWS_DIR.rglob("*")):
-            if path.suffix.lower() not in IMAGE_EXTENSIONS:
-                continue
-            rel = path.relative_to(BASE_DIR).as_posix()
-            stem = normalize_key(path.stem)
-            if stem and stem not in index:
-                index[stem] = rel
-    except Exception as exc:
-        log(f"preview image scan failed: {exc}")
-    return index
-
-
-def find_preview_image(item: dict[str, str], image_index: dict[str, str]) -> str:
-    candidates = [
-        item.get("raw_path", ""),
-        f"{item.get('category_path', '')}/{item.get('display_name', '')}",
-        f"{item.get('category_path', '')}_{item.get('display_name', '')}",
-        item.get("display_name", ""),
-    ]
-    normalized_candidates = [normalize_key(candidate) for candidate in candidates if candidate]
-    for candidate in normalized_candidates:
-        if candidate in image_index:
-            return image_index[candidate]
-    # A fuzzy all-pairs scan becomes prohibitively expensive for large EPS and
-    # preview libraries. Metadata images and exact filename matches above
-    # remain available regardless of library size.
-    if len(image_index) > FUZZY_PREVIEW_SCAN_LIMIT:
-        return ""
-    for key, rel in image_index.items():
-        if any(candidate and (candidate in key or key in candidate) for candidate in normalized_candidates):
-            return rel
-    return ""
-
-
 def save_image_data_url(data_url: str, original_name: str, item: dict[str, Any]) -> str:
     match = re.match(r"^data:(?P<mime>image/(?:png|jpeg|jpg|webp));base64,(?P<data>.+)$", data_url or "", re.DOTALL)
     if not match:
@@ -336,11 +297,7 @@ def save_image_data_url(data_url: str, original_name: str, item: dict[str, Any])
 # --- Cards ------------------------------------------------------------------
 
 
-def merge_metadata(
-    item: dict[str, str],
-    metadata: dict[str, Any],
-    image_index: dict[str, str],
-) -> dict[str, Any]:
+def merge_metadata(item: dict[str, str], metadata: dict[str, Any]) -> dict[str, Any]:
     meta = metadata.get(item["id"], {})
     if not isinstance(meta, dict):
         meta = {}
@@ -352,7 +309,7 @@ def merge_metadata(
     merged["append_negative"] = meta.get("append_negative") or ""
     merged["tags"] = meta.get("tags") if isinstance(meta.get("tags"), list) else []
     merged["memo"] = meta.get("memo") or ""
-    merged["image"] = meta.get("image") or find_preview_image(item, image_index)
+    merged["image"] = meta.get("image") or ""
     return merged
 
 
@@ -362,8 +319,7 @@ def load_visual_eps_cards() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     failed_files: list[Path] = []
     raw_items = load_eps_items(config, failed_files)
     cleanup_unused_previews(raw_items, metadata, config, failed_files)
-    image_index = preview_image_index()
-    return [merge_metadata(item, metadata, image_index) for item in raw_items], config
+    return [merge_metadata(item, metadata) for item in raw_items], config
 
 
 def visual_eps_item_map() -> dict[str, dict[str, Any]]:

@@ -19,7 +19,6 @@ METADATA_FILENAME = "visual_eps_metadata.json"
 EPS_PREVIEWS_DIRNAME = "previews"
 PREVIEWS_DIR = BASE_DIR / "previews"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
-FUZZY_PREVIEW_SCAN_LIMIT = 2000
 
 DEFAULT_CONFIG = {
     "eps_dir": "eps",
