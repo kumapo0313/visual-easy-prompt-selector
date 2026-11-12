@@ -71,10 +71,89 @@
   }
 
   // The page id is "<tabname>_visual_eps" (tabname: txt2img / img2img).
+  function tabnameOfPage(page) {
+    return page && page.id ? page.id.replace(/_visual_eps$/, "") : "";
+  }
+
   // Forge moves #<tabname>_prompt into the page only with the Compact prompt layout, so look it up by id.
   function positivePromptTextarea(page) {
-    const tabname = page && page.id ? page.id.replace(/_visual_eps$/, "") : "";
+    const tabname = tabnameOfPage(page);
     return tabname ? q(`#${tabname}_prompt textarea`) : null;
+  }
+
+  // Generated images. The output gallery (#<tabname>_gallery) is in the Generation tab, which is hidden while
+  // the Visual EPS tab is open, so the toolbar mirrors its images. Gradio keeps hidden tabs mounted, so the
+  // gallery keeps updating; only the image URLs are read, and Forge's gallery is left untouched.
+  function generatedImageSources(gallery) {
+    // Preview mode shows one large image plus a thumbnail strip; the thumbnails list every image once.
+    let sources = qa(".thumbnail-item img", gallery).map((img) => img.src);
+    if (!sources.length) sources = qa("img", gallery).map((img) => img.src);
+    return [...new Set(sources.filter(Boolean))];
+  }
+
+  function generatedImagesForPage(page) {
+    const tabname = tabnameOfPage(page);
+    const gallery = tabname ? document.getElementById(`${tabname}_gallery`) : null;
+    return gallery ? generatedImageSources(gallery) : [];
+  }
+
+  // Download a generated image as a File, so it goes through the same resize and upload as a chosen file.
+  async function generatedImageFile(src) {
+    const response = await fetch(src);
+    if (!response.ok) throw new Error("Failed to read the generated image");
+    const blob = await response.blob();
+    // The server may not send an image type; the browser decodes the image from its content anyway.
+    const type = blob.type && blob.type.startsWith("image/") ? blob.type : "image/png";
+    return new File([blob], "generated.png", { type });
+  }
+
+  function openGeneratedImage(src) {
+    const body = document.createElement("div");
+    body.className = "veps-preview-modal";
+    body.innerHTML = '<div class="veps-large-image"><img alt=""></div>';
+    q("img", body).src = src;
+    openModal("Generated image", body);
+  }
+
+  function renderGeneratedImages(page, gallery) {
+    const panel = q(".veps-output", page);
+    if (!panel) return;
+    const sources = generatedImageSources(gallery);
+    const key = sources.join("\n");
+    if (panel.dataset.vepsSources === key) return;
+    panel.dataset.vepsSources = key;
+    panel.hidden = sources.length === 0;
+    q(".veps-output-count", panel).textContent = String(sources.length);
+    const list = q(".veps-output-list", panel);
+    list.innerHTML = "";
+    for (const src of sources) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "veps-output-item";
+      button.title = "Open the generated image";
+      const image = document.createElement("img");
+      image.src = src;
+      image.alt = "";
+      button.appendChild(image);
+      button.addEventListener("click", () => openGeneratedImage(src));
+      list.appendChild(button);
+    }
+  }
+
+  function watchGeneratedImages(page) {
+    if (page.dataset.vepsOutputWatched === "1") return;
+    const tabname = tabnameOfPage(page);
+    const gallery = tabname ? document.getElementById(`${tabname}_gallery`) : null;
+    // Not rendered yet: bindCards() runs again on later UI updates and retries.
+    if (!gallery) return;
+    page.dataset.vepsOutputWatched = "1";
+    let timer = 0;
+    // Gradio adds the thumbnails one by one, so wait for the burst of changes to settle.
+    new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => renderGeneratedImages(page, gallery), 150);
+    }).observe(gallery, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
+    renderGeneratedImages(page, gallery);
   }
 
   // Tell Gradio that a textarea changed; Forge's updateInput() does this, with a plain input event as a fallback.
@@ -395,6 +474,7 @@
   function buildToolbar(page) {
     if (page.dataset.vepsToolbarBound === "1") {
       syncToolbarTags(page);
+      watchGeneratedImages(page);
       return;
     }
     page.dataset.vepsToolbarBound = "1";
@@ -407,6 +487,10 @@
         <span class="veps-load-status">Checking load mode...</span>
         <button type="button" class="veps-load-button">Load Visual EPS</button>
       </div>
+      <details class="veps-output" open hidden>
+        <summary>Generated images (<span class="veps-output-count">0</span>)</summary>
+        <div class="veps-output-list"></div>
+      </details>
       <div class="veps-filter-row">
         <input class="veps-local-search" type="search" placeholder="Visual EPS search">
         <select class="veps-search-mode" title="Search mode">
@@ -485,6 +569,7 @@
     });
 
     page.prepend(toolbar);
+    watchGeneratedImages(page);
     clearNativeExtraSearch(page);
     syncToolbarTags(page);
     getLoadStatus()
@@ -691,6 +776,10 @@
       <label>Tags<input name="tags" placeholder="e.g. hair, pose"></label>
       <label>Memo<textarea name="memo"></textarea></label>
       <label>Reference image<input name="image" type="file" accept="image/png,image/jpeg,image/webp"></label>
+      <div class="veps-generated-pick" hidden>
+        <span>Or use a generated image (click to select)</span>
+        <div class="veps-generated-list"></div>
+      </div>
       <label class="veps-inline"><input name="clear_image" type="checkbox"> Clear current reference image link</label>
       <div class="veps-current-image"></div>
       <div class="veps-form-actions">
@@ -715,12 +804,52 @@
     const imageSrc = cardImage(card);
     imageBox.innerHTML = imageSrc ? `<img src="${imageSrc}" alt=""><span>${item.image || ""}</span>` : "<span>No reference image</span>";
 
+    // Generated images of this tab: selecting one saves it as the reference image, like a chosen file.
+    let selectedGenerated = "";
+    const generatedPick = q(".veps-generated-pick", form);
+    const generatedList = q(".veps-generated-list", form);
+    const generatedSources = generatedImagesForPage(pageForCard(card));
+    generatedPick.hidden = generatedSources.length === 0;
+    for (const src of generatedSources) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "veps-output-item";
+      button.title = "Use this generated image as the reference image";
+      const image = document.createElement("img");
+      image.src = src;
+      image.alt = "";
+      button.appendChild(image);
+      button.addEventListener("click", () => {
+        selectedGenerated = selectedGenerated === src ? "" : src;
+        for (const other of qa(".veps-output-item", generatedList)) {
+          other.classList.toggle("veps-selected", other === button && selectedGenerated === src);
+        }
+        if (selectedGenerated) {
+          // One source at a time: a generated image replaces a chosen file and the clear option.
+          form.elements.image.value = "";
+          form.elements.clear_image.checked = false;
+        }
+      });
+      generatedList.appendChild(button);
+    }
+    const unselectGenerated = () => {
+      selectedGenerated = "";
+      for (const button of qa(".veps-output-item", generatedList)) button.classList.remove("veps-selected");
+    };
+    form.elements.image.addEventListener("change", () => {
+      if (form.elements.image.files.length) unselectGenerated();
+    });
+    form.elements.clear_image.addEventListener("change", () => {
+      if (form.elements.clear_image.checked) unselectGenerated();
+    });
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const status = q(".veps-form-status", form);
       status.textContent = "Saving...";
       try {
-        const file = form.elements.image.files[0];
+        let file = form.elements.image.files[0];
+        if (!file && selectedGenerated) file = await generatedImageFile(selectedGenerated);
         const imagePayload = await resizeImageFileAsDataUrl(file, previewMaxSize || 384);
         await saveItem({
           id,
