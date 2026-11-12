@@ -159,25 +159,6 @@ Editing a list-style prompt directly in the YAML changes its ID, so its image is
 }
 ```
 
-### WebP preview resize tool
-
-A helper tool is included at:
-
-```text
-tools/resize_visual_eps_previews.bat
-```
-
-Use it when your `previews/` folder contains many large PNG/JPG images. The tool can:
-
-- Convert preview images to WebP thumbnails.
-- Limit the number of files converted in one run.
-- Skip small files below a chosen KB threshold.
-- Back up original images before conversion.
-- Update Visual EPS metadata and YAML image references from PNG/JPG to WebP.
-
-This is optional. Visual EPS also works without preview images.
-
-
 ## Performance Notes
 
 Visual EPS can become heavy if many high-resolution reference images are kept in `previews/` and rendered through Extra Networks.
@@ -187,11 +168,10 @@ This release keeps the visual workflow while reducing the amount of work done in
 - Preview images are lazy-loaded instead of forcing every card image to load immediately.
 - Visual EPS search, tag, image, and source/folder filters run entirely in the Visual EPS toolbar, independent of the native Extra Networks search, so they combine across all EPS files.
 - Repeated background rebinding was removed to reduce unnecessary browser work.
-- A helper tool is included to resize existing preview images to small WebP thumbnails.
 
-The recommended preview size is around 256-800 px. Keep original large images outside the extension folder, or use the backup option in the tool before conversion.
+The recommended preview size is around 256-800 px.
 
-`preview_max_size` in `config.json` (default `800`) sets the longest side in pixels of images uploaded from `Prompt edit`, and the default size of the resize tool:
+`preview_max_size` in `config.json` (default `800`) sets the longest side in pixels of images uploaded from `Prompt edit`:
 
 ```json
 {

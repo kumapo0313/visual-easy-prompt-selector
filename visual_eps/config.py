@@ -27,7 +27,7 @@ DEFAULT_CONFIG = {
     "max_tree_leaf_items": 5000,
     # Delete images in <eps_dir>/previews that no current EPS prompt uses.
     "auto_remove_unused_previews": True,
-    # Longest side (px) of preview images uploaded from Prompt edit, and the resize tool's default.
+    # Longest side (px) of preview images uploaded from Prompt edit.
     "preview_max_size": 800,
 }
 
