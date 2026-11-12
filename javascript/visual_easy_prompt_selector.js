@@ -77,26 +77,85 @@
     return tabname ? q(`#${tabname}_prompt textarea`) : null;
   }
 
+  // Tell Gradio that a textarea changed; Forge's updateInput() does this, with a plain input event as a fallback.
+  function notifyInput(textarea) {
+    if (typeof updateInput === "function") {
+      updateInput(textarea);
+    } else {
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  }
+
+  function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  // Forge's separator between inserted texts (Settings > Extra Networks), " " by default.
+  function insertSeparator() {
+    return typeof opts === "object" && opts && typeof opts.extra_networks_add_text_separator === "string"
+      ? opts.extra_networks_add_text_separator
+      : " ";
+  }
+
+  // The delimiter right before (or after) a prompt text: the insert separator, or spaces with at most one comma,
+  // whichever is longer, so "a, b" loses ", " even when the separator is " ".
+  function delimiterBefore(text, separator) {
+    const loose = text.match(/[ \t]*,?[ \t]*$/)[0];
+    return separator && text.endsWith(separator) && separator.length > loose.length ? separator : loose;
+  }
+
+  function delimiterAfter(text, separator) {
+    const loose = text.match(/^[ \t]*,?[ \t]*/)[0];
+    return separator && text.startsWith(separator) && separator.length > loose.length ? separator : loose;
+  }
+
+  // Remove every literal occurrence of text that stands alone: preceded by the start, whitespace or a comma,
+  // and followed by the end, whitespace or a comma. The delimiter in front of it goes too
+  // (or the one after it, when the text starts the prompt or a line).
+  // Forge's own removal turns the text into a regex as is, so "(masterpiece:1.2)" is never found
+  // and "girl" also matches inside "1girl"; this one matches the text literally.
+  function removePromptText(value, text, separator) {
+    const pattern = new RegExp(`(?<=^|[\\s,])${escapeRegExp(text)}(?=$|[\\s,])`, "g");
+    let result = value;
+    // Work from the last match back, so the earlier match positions stay valid.
+    for (const match of [...value.matchAll(pattern)].reverse()) {
+      let start = match.index;
+      let end = start + text.length;
+      start -= delimiterBefore(result.slice(0, start), separator).length;
+      if (start === 0 || result[start - 1] === "\n") {
+        end += delimiterAfter(result.slice(end), separator).length;
+      }
+      result = result.slice(0, start) + result.slice(end);
+    }
+    return result;
+  }
+
+  // Click once to add the text, click again to remove it.
+  function togglePromptText(textarea, text) {
+    const separator = insertSeparator();
+    const removed = removePromptText(textarea.value, text, separator);
+    if (removed !== textarea.value) {
+      textarea.value = removed;
+    } else {
+      textarea.value = textarea.value ? textarea.value + separator + text : text;
+    }
+    notifyInput(textarea);
+  }
+
   // Card click handler, set as the card onclick in visual_eps/extra_networks_page.py.
   // Unlike Forge's cardClicked(), the prompt always goes to the positive box, whichever box had focus.
-  // updatePromptArea() is Forge's: it appends the text, or removes it when the box already has it.
   window.vepsCardClicked = function (tabname, prompt, negativePrompt) {
     const promptArea = q(`#${tabname}_prompt > label > textarea`);
-    if (promptArea && prompt) updatePromptArea(prompt, promptArea);
+    if (promptArea && prompt) togglePromptText(promptArea, prompt);
     const negativeArea = q(`#${tabname}_neg_prompt > label > textarea`);
-    if (negativeArea && negativePrompt) updatePromptArea(negativePrompt, negativeArea, true);
+    if (negativeArea && negativePrompt) togglePromptText(negativeArea, negativePrompt);
   };
 
   function clearPositivePrompt(page) {
     const textarea = positivePromptTextarea(page);
     if (!textarea) return;
     textarea.value = "";
-    // Tell Gradio about the change; Forge's updateInput() does this, with a plain input event as a fallback.
-    if (typeof updateInput === "function") {
-      updateInput(textarea);
-    } else {
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    }
+    notifyInput(textarea);
   }
 
   function cardTitle(card) {
