@@ -70,6 +70,25 @@
     return qa("[id$='_visual_eps']");
   }
 
+  // The page id is "<tabname>_visual_eps" (tabname: txt2img / img2img).
+  // Forge moves #<tabname>_prompt into the page only with the Compact prompt layout, so look it up by id.
+  function positivePromptTextarea(page) {
+    const tabname = page && page.id ? page.id.replace(/_visual_eps$/, "") : "";
+    return tabname ? q(`#${tabname}_prompt textarea`) : null;
+  }
+
+  function clearPositivePrompt(page) {
+    const textarea = positivePromptTextarea(page);
+    if (!textarea) return;
+    textarea.value = "";
+    // Tell Gradio about the change; Forge's updateInput() does this, with a plain input event as a fallback.
+    if (typeof updateInput === "function") {
+      updateInput(textarea);
+    } else {
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  }
+
   function cardTitle(card) {
     const title = q(".name", card);
     return title ? title.textContent.trim() : card.dataset.name || "Visual EPS";
@@ -315,8 +334,9 @@
     toolbar.className = "veps-extra-toolbar";
     toolbar.innerHTML = `
       <div class="veps-load-row">
-        <button type="button" class="veps-load-button">Load Visual EPS</button>
+        <button type="button" class="veps-clear-prompt" title="Clear the positive prompt of this tab">Clear prompt</button>
         <span class="veps-load-status">Checking load mode...</span>
+        <button type="button" class="veps-load-button">Load Visual EPS</button>
       </div>
       <div class="veps-filter-row">
         <input class="veps-local-search" type="search" placeholder="Visual EPS search">
@@ -344,6 +364,11 @@
       if (event.target.closest(".veps-load-button")) {
         event.preventDefault();
         requestVisualEpsLoad(page, true);
+        return;
+      }
+      if (event.target.closest(".veps-clear-prompt")) {
+        event.preventDefault();
+        clearPositivePrompt(page);
         return;
       }
       const tagButton = event.target.closest("[data-tag]");

@@ -53,6 +53,8 @@
 }
 
 .veps-load-status {
+  /* Push the status and the Load / Reload button to the right end of the row. */
+  margin-left: auto;
   color: rgba(220, 220, 220, 0.82);
   font-size: 12px;
 }
@@ -82,6 +84,7 @@
 
 .veps-tag-list button,
 .veps-clear-filter,
+.veps-clear-prompt,
 .veps-card-tool {
   min-height: 28px;
   border: 1px solid rgba(148, 163, 184, 0.42);
@@ -96,6 +99,21 @@
   min-width: 64px;
   min-height: 36px;
   white-space: nowrap;
+}
+
+.veps-extra-toolbar .veps-load-row .veps-clear-prompt {
+  min-height: 32px;
+  border-color: rgba(248, 113, 113, 0.7);
+  padding: 6px 16px;
+  background: #b91c1c;
+  color: #ffffff;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.veps-extra-toolbar .veps-load-row .veps-clear-prompt:hover {
+  border-color: rgba(252, 165, 165, 0.9);
+  background: #991b1b;
 }
 
 .veps-active-filter {
