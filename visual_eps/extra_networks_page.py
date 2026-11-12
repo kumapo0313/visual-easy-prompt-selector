@@ -22,7 +22,7 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
         super().__init__("Visual EPS")
         # Visual EPS has its own "Prompt edit" button; hide Forge's standard "Edit metadata" button.
         self.btn_edit_item_tpl = ""
-        self.allow_negative_prompt = False
+        self.allow_negative_prompt = True
         self._config = load_config()
         self._loaded = self.load_mode() == "startup"
         self._load_revision = 0
@@ -76,6 +76,7 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
             "description": "\n".join(part for part in description_parts if part),
             "search_terms": [search_blob(item), category, source],
             "prompt": quote_js(prompt),
+            "negative_prompt": quote_js(str(item.get("append_negative") or "").strip()),
             "local_preview": str(image_path if has_image else PREVIEWS_DIR / f"{normalize_key(name) or 'visual_eps'}.preview.{shared.opts.samples_format}"),
             "sort_keys": {
                 "default": index,
@@ -86,7 +87,20 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
             },
         }
 
+    @staticmethod
+    def card_onclick(tabname: str, item: dict) -> str:
+        """Card click handler: vepsCardClicked() in javascript/visual_easy_prompt_selector.js.
+
+        Forge's default cardClicked() puts the prompt into whichever prompt box had focus last
+        when allow_negative_prompt is True, so Visual EPS inserts the prompts itself.
+        "prompt" and "negative_prompt" are already JS string literals (quote_js).
+        """
+        negative = item.get("negative_prompt") or '""'
+        # Forge escapes only the onclick it builds itself, so escape this one for the HTML attribute.
+        return html.escape(f"vepsCardClicked({quote_js(tabname)}, {item['prompt']}, {negative});")
+
     def create_item_html(self, tabname: str, item: dict, template=None):
+        item["onclick"] = self.card_onclick(tabname, item)
         rendered = super().create_item_html(tabname, item, template)
         if not isinstance(rendered, str):
             return rendered
@@ -142,6 +156,7 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
             )
 
         def file_item(item: dict[str, Any]) -> str:
+            item["onclick"] = self.card_onclick(tabname, item)
             args = super(ExtraNetworksPageVisualEPS, self).create_item_html(tabname, item)
             if not isinstance(args, dict):
                 return ""

@@ -77,6 +77,16 @@
     return tabname ? q(`#${tabname}_prompt textarea`) : null;
   }
 
+  // Card click handler, set as the card onclick in visual_eps/extra_networks_page.py.
+  // Unlike Forge's cardClicked(), the prompt always goes to the positive box, whichever box had focus.
+  // updatePromptArea() is Forge's: it appends the text, or removes it when the box already has it.
+  window.vepsCardClicked = function (tabname, prompt, negativePrompt) {
+    const promptArea = q(`#${tabname}_prompt > label > textarea`);
+    if (promptArea && prompt) updatePromptArea(prompt, promptArea);
+    const negativeArea = q(`#${tabname}_neg_prompt > label > textarea`);
+    if (negativeArea && negativePrompt) updatePromptArea(negativePrompt, negativeArea, true);
+  };
+
   function clearPositivePrompt(page) {
     const textarea = positivePromptTextarea(page);
     if (!textarea) return;
