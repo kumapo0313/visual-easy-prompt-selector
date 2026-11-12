@@ -411,6 +411,35 @@
     return data;
   }
 
+  // Shown while <eps_dir>/prompts has no YAML files, with a button that copies the bundled samples.
+  function syncEmptyNotice(page, status) {
+    const notice = q(".veps-empty-notice", page);
+    if (notice) notice.hidden = !(status && status.prompt_files === 0);
+  }
+
+  function refreshEmptyNotice(page) {
+    getLoadStatus()
+      .then((status) => syncEmptyNotice(page, status))
+      .catch(() => {});
+  }
+
+  async function copySamples(page) {
+    const button = q(".veps-copy-samples", page);
+    const message = q(".veps-empty-message", page);
+    if (button) button.disabled = true;
+    try {
+      const response = await fetch("/visual-eps/copy-samples", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to copy the samples");
+      syncEmptyNotice(page, { prompt_files: data.copied });
+      await requestVisualEpsLoad(page, true);
+    } catch (error) {
+      if (message) message.textContent = error.message || String(error);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
   function waitForVisualEpsRefresh(page, expectedRevision) {
     let attempts = 0;
     const poll = () => {
@@ -420,6 +449,7 @@
         page.dataset.vepsLoading = "0";
         syncToolbarTags(page);
         bindCards();
+        refreshEmptyNotice(page);
         updateLoadControls(page, {
           loaded: true,
           message: `${loadedPromptCount(page)} prompts loaded`,
@@ -463,6 +493,7 @@
     if (!page || pageCards(page).length || page.dataset.vepsLoading === "1") return;
     try {
       const status = await getLoadStatus();
+      syncEmptyNotice(page, status);
       updateLoadControls(page, { loaded: status.loaded, message: status.loaded ? "Ready to display" : "Not loaded" });
       if (status.load_mode === "on_tab_open") await requestVisualEpsLoad(page, false);
     } catch (error) {
@@ -538,6 +569,10 @@
         <span class="veps-load-status">Checking load mode...</span>
         <button type="button" class="veps-load-button">Load Visual EPS</button>
       </div>
+      <div class="veps-empty-notice" hidden>
+        <span class="veps-empty-message">No prompts yet. Put Easy Prompt Selector YAML files in the prompts folder of eps_dir (default: eps/prompts/), or try the bundled samples.</span>
+        <button type="button" class="veps-copy-samples" title="Copy the bundled samples (prompts, preview images, card settings) into eps_dir">Copy samples</button>
+      </div>
       <details class="veps-output" open hidden>
         <summary>Generated images (<span class="veps-output-count">0</span>)</summary>
         <div class="veps-output-list"></div>
@@ -568,6 +603,11 @@
       if (event.target.closest(".veps-load-button")) {
         event.preventDefault();
         requestVisualEpsLoad(page, true);
+        return;
+      }
+      if (event.target.closest(".veps-copy-samples")) {
+        event.preventDefault();
+        copySamples(page);
         return;
       }
       if (event.target.closest(".veps-generate")) {
@@ -636,6 +676,7 @@
     syncToolbarTags(page);
     getLoadStatus()
       .then((status) => {
+        syncEmptyNotice(page, status);
         if (page.dataset.vepsLoading === "1") return;
         updateLoadControls(page, {
           loaded: status.loaded || pageCards(page).length > 0,

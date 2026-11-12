@@ -8,6 +8,7 @@ import io
 import json
 import mimetypes
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ import yaml
 from .config import (
     BASE_DIR,
     IMAGE_EXTENSIONS,
+    SAMPLE_EPS_DIR,
     eps_previews_dir,
     eps_prompts_dir,
     load_config,
@@ -32,6 +34,10 @@ class ItemNotFoundError(LookupError):
 
 class InvalidEditError(ValueError):
     """The Prompt edit request asks for a change that is not allowed."""
+
+
+class SamplesNotCopiedError(RuntimeError):
+    """The bundled samples cannot be copied (missing, or the prompts folder already has YAML files)."""
 
 
 # --- EPS YAML ---------------------------------------------------------------
@@ -324,6 +330,66 @@ def save_image_data_url(data_url: str, original_name: str, item: dict[str, Any])
         counter += 1
     target.write_bytes(raw)
     return stored_path(target)
+
+
+# --- Samples ----------------------------------------------------------------
+
+
+def prompt_file_count() -> int:
+    return len(yaml_files(eps_prompts_dir(load_config())))
+
+
+def copy_samples() -> int:
+    """Copy sample_eps (prompts, previews, metadata) into eps_dir. Returns the number of YAML files copied.
+
+    Only allowed while <eps_dir>/prompts has no YAML files. Existing files and metadata values are never overwritten
+    (only empty fields are filled in), and image links are rewritten to the configured previews folder.
+    """
+    config = load_config()
+    prompts_dir = eps_prompts_dir(config)
+    previews_dir = eps_previews_dir(config)
+    if yaml_files(prompts_dir):
+        raise SamplesNotCopiedError("The prompts folder already has YAML files; samples were not copied.")
+    sample_files = yaml_files(SAMPLE_EPS_DIR / "prompts")
+    if not sample_files:
+        raise SamplesNotCopiedError("No bundled samples were found.")
+
+    for source in sample_files:
+        target = prompts_dir / source.relative_to(SAMPLE_EPS_DIR / "prompts")
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+
+    sample_previews = SAMPLE_EPS_DIR / "previews"
+    if sample_previews.is_dir():
+        previews_dir.mkdir(parents=True, exist_ok=True)
+        for source in sample_previews.iterdir():
+            target = previews_dir / source.name
+            if source.is_file() and source.suffix.lower() in IMAGE_EXTENSIONS and not target.exists():
+                shutil.copy2(source, target)
+
+    sample_metadata = load_json(SAMPLE_EPS_DIR / "visual_eps_metadata.json", {})
+    if isinstance(sample_metadata, dict) and sample_metadata:
+        metadata = load_metadata()
+        for item_id, entry in sample_metadata.items():
+            if not isinstance(entry, dict):
+                continue
+            entry = dict(entry)
+            image = str(entry.get("image") or "").strip()
+            if image:
+                entry["image"] = stored_path(previews_dir / Path(image).name)
+            current = metadata.get(item_id)
+            if not isinstance(current, dict):
+                metadata[item_id] = entry
+                continue
+            # Keep what the user already set; only fill in the empty fields.
+            for key, value in entry.items():
+                if not current.get(key):
+                    current[key] = value
+        save_metadata(metadata)
+
+    log(f"copied {len(sample_files)} sample EPS file(s) to {prompts_dir}")
+    return len(sample_files)
 
 
 # --- Cards ------------------------------------------------------------------

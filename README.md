@@ -114,6 +114,12 @@ To move the whole folder, edit `config.json`:
 - `eps_dir` is relative to the Visual EPS extension folder, or an absolute path. The `prompts/`, `previews/` and `visual_eps_metadata.json` names inside it are fixed.
 - After changing `eps_dir`, move the existing folder contents yourself and restart WebUI.
 
+### Sample prompts
+
+Right after installation `eps/` is empty, so the Visual EPS tab has no cards. While `<eps_dir>/prompts/` has no YAML files, the tab shows a notice with a `Copy samples` button. Pressing it copies the bundled samples in `sample_eps/` (prompts, preview images and card settings) into `eps_dir` and loads them. Existing files and card settings are not overwritten. The samples are never copied unless you press the button.
+
+To remove the samples, delete `<eps_dir>/prompts/my_characters.yaml`. Their images and card settings are cleaned up the next time the library is loaded with at least one other prompt (the cleanup is skipped while no prompts are loaded).
+
 ## Load Timing
 
 Visual EPS does not need to scan a large prompt library during WebUI startup. The default mode is:
@@ -211,7 +217,7 @@ It does not modify:
 
 ### The tab shows no prompts
 
-Put your Easy Prompt Selector YAML files in `<eps_dir>/prompts/` (default: `eps/prompts/`). To try the bundled samples, copy the files from `sample_eps/` there.
+Put your Easy Prompt Selector YAML files in `<eps_dir>/prompts/` (default: `eps/prompts/`). To try the bundled samples, press `Copy samples` in the Visual EPS tab (see [Sample prompts](#sample-prompts)).
 
 You can also delete `config.json` and restart WebUI to let Visual EPS regenerate it.
 

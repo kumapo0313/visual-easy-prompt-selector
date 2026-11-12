@@ -14,7 +14,15 @@ from modules import script_callbacks, ui_extra_networks
 
 from visual_eps.config import load_config, preview_max_size
 from visual_eps.extra_networks_page import PAGE_NAME, ExtraNetworksPageVisualEPS
-from visual_eps.services import InvalidEditError, ItemNotFoundError, get_item, save_item
+from visual_eps.services import (
+    InvalidEditError,
+    ItemNotFoundError,
+    SamplesNotCopiedError,
+    copy_samples,
+    get_item,
+    prompt_file_count,
+    save_item,
+)
 from visual_eps.utils import log
 
 
@@ -40,7 +48,10 @@ def on_before_ui():
 def api_load_status(_request: Request):
     if VISUAL_EPS_PAGE is None:
         return JSONReply({"error": "Visual EPS page is not registered"}, status_code=503)
-    return JSONReply(VISUAL_EPS_PAGE.load_status())
+    status = VISUAL_EPS_PAGE.load_status()
+    # Lets the tab offer the bundled samples when the prompts folder is empty.
+    status["prompt_files"] = prompt_file_count()
+    return JSONReply(status)
 
 
 async def api_request_load(request: Request):
@@ -80,12 +91,23 @@ async def api_save_item(request: Request):
         return JSONReply({"error": str(exc)}, status_code=500)
 
 
+def api_copy_samples(_request: Request):
+    try:
+        return JSONReply({"ok": True, "copied": copy_samples()})
+    except SamplesNotCopiedError as exc:
+        return JSONReply({"error": str(exc)}, status_code=409)
+    except Exception as exc:
+        log(f"api_copy_samples failed: {exc}")
+        return JSONReply({"error": str(exc)}, status_code=500)
+
+
 def on_app_started(_demo, app):
     try:
         app.add_api_route("/visual-eps/status", api_load_status, methods=["GET"])
         app.add_api_route("/visual-eps/load", api_request_load, methods=["POST"])
         app.add_api_route("/visual-eps/item", api_get_item, methods=["GET"])
         app.add_api_route("/visual-eps/save", api_save_item, methods=["POST"])
+        app.add_api_route("/visual-eps/copy-samples", api_copy_samples, methods=["POST"])
         log("registered Visual EPS API routes")
     except Exception as exc:
         log(f"failed to register API routes: {exc}")

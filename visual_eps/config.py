@@ -18,6 +18,8 @@ EPS_PROMPTS_DIRNAME = "prompts"
 METADATA_FILENAME = "visual_eps_metadata.json"
 EPS_PREVIEWS_DIRNAME = "previews"
 PREVIEWS_DIR = BASE_DIR / "previews"
+# Bundled sample data, laid out like an eps_dir. Copied on request when the prompts folder is empty.
+SAMPLE_EPS_DIR = BASE_DIR / "sample_eps"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
 DEFAULT_CONFIG = {
