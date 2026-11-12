@@ -1,0 +1,14 @@
+{
+  "eps:outfit/maid": {
+    "image": "eps/previews/outfit_maid.webp",
+    "append_negative": "worst quality, low quality, watermark, signature, username, text, monochrome, sketch, sepia, greyscale, realistic, photorealistic, "
+  },
+  "eps:outfit/knight": {
+    "image": "eps/previews/outfit_knight.webp",
+    "append_negative": "worst quality, low quality, watermark, signature, username, text, monochrome, sketch, sepia, greyscale, realistic, photorealistic, "
+  },
+  "eps:outfit/wizard": {
+    "append_negative": "worst quality, low quality, watermark, signature, username, text, monochrome, sketch, sepia, greyscale, realistic, photorealistic, ",
+    "image": "eps/previews/outfit_wizard.webp"
+  }
+}
