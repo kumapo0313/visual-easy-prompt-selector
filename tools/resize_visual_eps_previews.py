@@ -35,9 +35,9 @@ def config_eps_dir(base_dir: Path) -> Path:
 def config_preview_max_size(base_dir: Path) -> int:
     """The "preview_max_size" from config.json, used as the default max size."""
     try:
-        size = int(load_config(base_dir).get("preview_max_size", 384))
+        size = int(load_config(base_dir).get("preview_max_size", 800))
     except (TypeError, ValueError):
-        size = 384
+        size = 800
     return max(64, min(size, 1024))
 
 
@@ -53,7 +53,7 @@ class ConvertResult:
 @dataclass
 class ConvertOptions:
     previews_dir: Path
-    max_size: int = 384
+    max_size: int = 800
     quality: int = 84
     dry_run: bool = False
     backup_originals: bool = True

@@ -4,5 +4,5 @@
   "load_mode": "on_tab_open",
   "max_tree_leaf_items": 5000,
   "auto_remove_unused_previews": true,
-  "preview_max_size": 384
+  "preview_max_size": 800
 }

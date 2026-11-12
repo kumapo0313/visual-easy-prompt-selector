@@ -912,7 +912,7 @@
       try {
         let file = form.elements.image.files[0];
         if (!file && selectedGenerated) file = await generatedImageFile(selectedGenerated);
-        const imagePayload = await resizeImageFileAsDataUrl(file, previewMaxSize || 384);
+        const imagePayload = await resizeImageFileAsDataUrl(file, previewMaxSize || 800);
         await saveItem({
           id,
           ...(item.prompt_editable ? { prompt: form.elements.prompt.value } : {}),
