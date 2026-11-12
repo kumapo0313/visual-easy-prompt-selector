@@ -152,6 +152,40 @@
   white-space: nowrap;
 }
 
+.veps-extra-toolbar .veps-load-row .veps-generate {
+  min-height: 32px;
+  border: 1px solid rgba(251, 146, 60, 0.7);
+  border-radius: 6px;
+  padding: 6px 16px;
+  background: #ea580c;
+  color: #ffffff;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.veps-extra-toolbar .veps-load-row .veps-generate:hover:not(:disabled) {
+  border-color: rgba(253, 186, 116, 0.9);
+  background: #c2410c;
+}
+
+/* While generating, the button interrupts instead. */
+.veps-extra-toolbar .veps-load-row .veps-generate[data-state="running"],
+.veps-extra-toolbar .veps-load-row .veps-generate[data-state="interrupting"] {
+  border-color: rgba(148, 163, 184, 0.6);
+  background: #475569;
+}
+
+.veps-extra-toolbar .veps-load-row .veps-generate[data-state="running"]:hover:not(:disabled) {
+  border-color: rgba(203, 213, 225, 0.9);
+  background: #334155;
+}
+
+.veps-extra-toolbar .veps-load-row .veps-generate:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .veps-extra-toolbar .veps-load-row .veps-clear-prompt {
   min-height: 32px;
   border-color: rgba(248, 113, 113, 0.7);

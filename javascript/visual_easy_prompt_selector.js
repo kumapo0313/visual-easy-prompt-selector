@@ -81,6 +81,53 @@
     return tabname ? q(`#${tabname}_prompt textarea`) : null;
   }
 
+  // Generate button. It clicks Forge's #<tabname>_generate. Forge keeps that button visible while generating
+  // and shows #<tabname>_interrupt over it (style.display "block"), so a second click would queue another job;
+  // while Interrupt is shown, the toolbar button becomes Interrupt instead.
+  function submitButtons(page) {
+    const tabname = tabnameOfPage(page);
+    const byName = (name) => (tabname ? document.getElementById(`${tabname}_${name}`) : null);
+    return { generate: byName("generate"), interrupt: byName("interrupt"), interrupting: byName("interrupting") };
+  }
+
+  function isShown(element) {
+    return !!element && element.style.display === "block";
+  }
+
+  function syncGenerateButton(page) {
+    const button = q(".veps-generate", page);
+    if (!button) return;
+    const { interrupt, interrupting } = submitButtons(page);
+    const state = isShown(interrupting) ? "interrupting" : isShown(interrupt) ? "running" : "idle";
+    if (button.dataset.state === state) return;
+    button.dataset.state = state;
+    button.textContent = { idle: "Generate", running: "Interrupt", interrupting: "Interrupting..." }[state];
+    button.title = state === "idle" ? "Generate with this tab's settings" : "Stop the current generation";
+    button.disabled = state === "interrupting";
+  }
+
+  function clickGenerate(page) {
+    const { generate, interrupt } = submitButtons(page);
+    if (isShown(interrupt)) {
+      interrupt.click();
+    } else if (generate) {
+      generate.click();
+    }
+  }
+
+  function watchSubmitButtons(page) {
+    if (page.dataset.vepsSubmitWatched === "1") return;
+    const { interrupt, interrupting } = submitButtons(page);
+    // Not rendered yet: bindCards() runs again on later UI updates and retries.
+    if (!interrupt) return;
+    page.dataset.vepsSubmitWatched = "1";
+    const observer = new MutationObserver(() => syncGenerateButton(page));
+    for (const element of [interrupt, interrupting]) {
+      if (element) observer.observe(element, { attributes: true, attributeFilter: ["style"] });
+    }
+    syncGenerateButton(page);
+  }
+
   // Generated images. The output gallery (#<tabname>_gallery) is in the Generation tab, which is hidden while
   // the Visual EPS tab is open, so the toolbar mirrors its images. Gradio keeps hidden tabs mounted, so the
   // gallery keeps updating; only the image URLs are read, and Forge's gallery is left untouched.
@@ -475,6 +522,7 @@
     if (page.dataset.vepsToolbarBound === "1") {
       syncToolbarTags(page);
       watchGeneratedImages(page);
+      watchSubmitButtons(page);
       return;
     }
     page.dataset.vepsToolbarBound = "1";
@@ -483,6 +531,7 @@
     toolbar.className = "veps-extra-toolbar";
     toolbar.innerHTML = `
       <div class="veps-load-row">
+        <button type="button" class="veps-generate" title="Generate with this tab's settings">Generate</button>
         <button type="button" class="veps-clear-prompt" title="Clear the positive prompt of this tab">Clear prompt</button>
         <span class="veps-load-status">Checking load mode...</span>
         <button type="button" class="veps-load-button">Load Visual EPS</button>
@@ -517,6 +566,11 @@
       if (event.target.closest(".veps-load-button")) {
         event.preventDefault();
         requestVisualEpsLoad(page, true);
+        return;
+      }
+      if (event.target.closest(".veps-generate")) {
+        event.preventDefault();
+        clickGenerate(page);
         return;
       }
       if (event.target.closest(".veps-clear-prompt")) {
@@ -570,6 +624,7 @@
 
     page.prepend(toolbar);
     watchGeneratedImages(page);
+    watchSubmitButtons(page);
     clearNativeExtraSearch(page);
     syncToolbarTags(page);
     getLoadStatus()
