@@ -4,6 +4,10 @@ Visual Easy Prompt Selector is an extension for Stable Diffusion WebUI, Forge, a
 
 The prompt of a card can be edited from `Prompt edit`. The change is written back to the YAML file under `<eps_dir>/prompts`, keeping its comments and block styles (`|-`). Everything else you edit (display name, tags, notes, prompt additions, preview images) is stored in this extension folder.
 
+`Copy` duplicates a card: it adds a copy of the entry right after it in the same YAML file (`maid` → `maid_copy`), copies the card's settings, and opens `Prompt edit` on the copy. The copy shares the original's preview image until you change it. List-style entries (`- prompt`) cannot be duplicated.
+
+`Delete` removes a card after a confirmation: its entry is deleted from the YAML file (the rest of the file, including comments, stays as it is), together with its card settings and its preview image unless another card uses it.
+
 ## Introduction
 
 dr1610さん開発の "Visual Easy Prompt Selector" の個人的なフォークバージョンです。

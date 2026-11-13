@@ -19,6 +19,8 @@ from visual_eps.services import (
     ItemNotFoundError,
     SamplesNotCopiedError,
     copy_samples,
+    delete_item,
+    duplicate_item,
     get_item,
     prompt_file_count,
     save_item,
@@ -91,6 +93,32 @@ async def api_save_item(request: Request):
         return JSONReply({"error": str(exc)}, status_code=500)
 
 
+async def api_duplicate_item(request: Request):
+    try:
+        payload = await request.json()
+        item_id = str(payload.get("id") or "") if isinstance(payload, dict) else ""
+        return JSONReply({"ok": True, "id": duplicate_item(item_id)})
+    except ItemNotFoundError as exc:
+        return JSONReply({"error": str(exc)}, status_code=404)
+    except InvalidEditError as exc:
+        return JSONReply({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        log(f"api_duplicate_item failed: {exc}")
+        return JSONReply({"error": str(exc)}, status_code=500)
+
+
+async def api_delete_item(request: Request):
+    try:
+        payload = await request.json()
+        delete_item(str(payload.get("id") or "") if isinstance(payload, dict) else "")
+        return JSONReply({"ok": True})
+    except ItemNotFoundError as exc:
+        return JSONReply({"error": str(exc)}, status_code=404)
+    except Exception as exc:
+        log(f"api_delete_item failed: {exc}")
+        return JSONReply({"error": str(exc)}, status_code=500)
+
+
 def api_copy_samples(_request: Request):
     try:
         return JSONReply({"ok": True, "copied": copy_samples()})
@@ -107,6 +135,8 @@ def on_app_started(_demo, app):
         app.add_api_route("/visual-eps/load", api_request_load, methods=["POST"])
         app.add_api_route("/visual-eps/item", api_get_item, methods=["GET"])
         app.add_api_route("/visual-eps/save", api_save_item, methods=["POST"])
+        app.add_api_route("/visual-eps/duplicate", api_duplicate_item, methods=["POST"])
+        app.add_api_route("/visual-eps/delete", api_delete_item, methods=["POST"])
         app.add_api_route("/visual-eps/copy-samples", api_copy_samples, methods=["POST"])
         log("registered Visual EPS API routes")
     except Exception as exc:

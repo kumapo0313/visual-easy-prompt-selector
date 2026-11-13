@@ -116,6 +116,8 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
         buttons = (
             '<button type="button" class="veps-card-tool veps-preview-button" title="Preview">View</button>'
             f'<button type="button" class="veps-card-tool veps-edit-button" data-veps-id="{veps_id}" title="Edit insert prompt and Visual EPS metadata">Prompt edit</button>'
+            f'<button type="button" class="veps-card-tool veps-duplicate-button" data-veps-id="{veps_id}" title="Duplicate this card (adds a copy of its YAML entry and settings)">Copy</button>'
+            f'<button type="button" class="veps-card-tool veps-delete-button" data-veps-id="{veps_id}" title="Delete this card (removes its entry from the YAML file)">Delete</button>'
         )
         rendered = rendered.replace('<div class="button-row">', f'<div class="button-row">{buttons}', 1)
         return rendered

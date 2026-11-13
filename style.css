@@ -256,6 +256,11 @@
   color: #ffffff;
 }
 
+.extra-network-pane .button-row .veps-delete-button:hover {
+  border-color: rgba(248, 113, 113, 0.85);
+  background: rgba(220, 38, 38, 0.88);
+}
+
 /* Modal */
 #veps-modal[hidden] {
   display: none;

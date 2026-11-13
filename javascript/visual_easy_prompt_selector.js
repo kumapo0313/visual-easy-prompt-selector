@@ -995,6 +995,70 @@
     openModal(`Visual EPS edit: ${cardTitle(card)}`, form);
   }
 
+  // Duplicate a card on the server, refresh the cards, then open Prompt edit on the copy so it can be renamed or changed.
+  async function duplicateCard(card, trigger) {
+    const id = (trigger && trigger.dataset.vepsId) || card.dataset.vepsId;
+    if (!id) throw new Error("Visual EPS item id is missing. Reload WebUI and try again.");
+    const page = pageForCard(card);
+    trigger.disabled = true;
+    try {
+      const response = await fetch("/visual-eps/duplicate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to duplicate the card");
+      refreshVisualEpsPages(page);
+      const copy = await waitForCard(page, data.id);
+      if (copy) await openEdit(copy, q(".veps-edit-button", copy));
+    } finally {
+      trigger.disabled = false;
+    }
+  }
+
+  // Delete a card after confirmation: its YAML entry, its settings and its unused preview image.
+  async function deleteCard(card, trigger) {
+    const id = (trigger && trigger.dataset.vepsId) || card.dataset.vepsId;
+    if (!id) throw new Error("Visual EPS item id is missing. Reload WebUI and try again.");
+    const source = card.dataset.vepsSource || "its YAML file";
+    if (!confirm(`Delete "${cardTitle(card)}"?\n\nIts entry is removed from ${source}, together with its Visual EPS settings.`)) return;
+    trigger.disabled = true;
+    try {
+      const response = await fetch("/visual-eps/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to delete the card");
+      // Hide it right away; the refresh removes it for good.
+      card.classList.add("veps-filter-hidden");
+      refreshVisualEpsPages(pageForCard(card));
+    } finally {
+      trigger.disabled = false;
+    }
+  }
+
+  // Wait (up to about 15 s) for the refreshed grid to show the card with this id.
+  function waitForCard(page, id) {
+    const selector = `.card.veps-extra-card[data-veps-id="${CSS.escape(id)}"]`;
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const poll = () => {
+        const card = page ? q(selector, page) : null;
+        if (card || attempts >= 50) {
+          if (card) bindCards();
+          resolve(card);
+          return;
+        }
+        attempts += 1;
+        window.setTimeout(poll, 300);
+      };
+      window.setTimeout(poll, 300);
+    });
+  }
+
   function openPreview(card) {
     const body = document.createElement("div");
     body.className = "veps-preview-modal";
@@ -1022,6 +1086,22 @@
       card.dataset.vepsBound = "1";
       const edit = q(".veps-edit-button", card);
       const preview = q(".veps-preview-button", card);
+      const duplicate = q(".veps-duplicate-button", card);
+      const remove = q(".veps-delete-button", card);
+      if (remove) {
+        remove.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          deleteCard(card, remove).catch((error) => alert(error.message || String(error)));
+        });
+      }
+      if (duplicate) {
+        duplicate.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          duplicateCard(card, duplicate).catch((error) => alert(error.message || String(error)));
+        });
+      }
       if (edit) {
         edit.addEventListener("click", (event) => {
           event.preventDefault();

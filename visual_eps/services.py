@@ -112,20 +112,48 @@ def load_eps_items(config: dict[str, Any], failed_files: list[Path] | None = Non
     return stable_ids(items)
 
 
-def update_yaml_prompt(item: dict[str, Any], new_prompt: str) -> None:
-    """Write a new prompt into the item's YAML file, keeping comments and block styles."""
+def ruamel_modules() -> tuple[Any, Any, Any]:
+    """(YAML, LiteralScalarString, ScalarString) from ruamel.yaml, which round-trip edits need."""
     try:
         from ruamel.yaml import YAML
         from ruamel.yaml.scalarstring import LiteralScalarString, ScalarString
     except ImportError as exc:
         raise RuntimeError("Editing EPS prompts requires ruamel.yaml. Restart WebUI to install it, or run: pip install ruamel.yaml") from exc
+    return YAML, LiteralScalarString, ScalarString
 
+
+def editable_location(item: dict[str, Any]) -> tuple[Path, YamlLocator]:
     locator = item.get("yaml_locator") or []
     source_path = str(item.get("source_path") or "")
     if not item.get("prompt_editable") or not locator or not source_path:
         raise ValueError("This EPS entry cannot be edited.")
+    return Path(source_path), locator
 
-    path = Path(source_path)
+
+def check_current_prompt(path: Path, locator: YamlLocator, current: Any, item: dict[str, Any]) -> None:
+    """Refuse to write when the entry no longer holds the prompt Visual EPS loaded."""
+    current_prompt = str(current or (str(locator[-1][1]) if locator[-1][0] == "key" else ""))
+    if current_prompt != item.get("prompt", ""):
+        raise RuntimeError(f"{path.name} changed on disk. Reload Visual EPS and try again.")
+
+
+def styled_prompt(current: Any, new_prompt: str) -> Any:
+    """new_prompt as a scalar in the same style as current (block style when it has several lines)."""
+    _, LiteralScalarString, ScalarString = ruamel_modules()
+    if isinstance(current, LiteralScalarString) or "\n" in new_prompt:
+        return LiteralScalarString(new_prompt)
+    if isinstance(current, ScalarString):
+        return type(current)(new_prompt)
+    return new_prompt
+
+
+def rewrite_yaml(path: Path, edit: Any) -> Any:
+    """Load path with ruamel, call edit(data) to change it in place, and write it back.
+
+    Comments and block styles are kept. Nothing is written yet: returns (the output parsed as plain YAML,
+    a function that writes it), so the caller can check the result first.
+    """
+    YAML, _, _ = ruamel_modules()
     raw = path.read_bytes()
     # ruamel keeps "\r" inside comments, so work in LF and restore the file's line endings on write.
     text = raw.decode("utf-8-sig").replace("\r\n", "\n")
@@ -137,16 +165,7 @@ def update_yaml_prompt(item: dict[str, Any], new_prompt: str) -> None:
         rt.width = 4096
         rt.indent(mapping=mapping, sequence=sequence, offset=offset)
         data = rt.load(text)
-        parent, slot, current = yaml_value_at(data, locator)
-        current_prompt = str(current or (str(locator[-1][1]) if locator[-1][0] == "key" else ""))
-        if current_prompt != item.get("prompt", ""):
-            raise RuntimeError(f"{path.name} changed on disk. Reload Visual EPS and try again.")
-        if isinstance(current, LiteralScalarString) or "\n" in new_prompt:
-            parent[slot] = LiteralScalarString(new_prompt)
-        elif isinstance(current, ScalarString):
-            parent[slot] = type(current)(new_prompt)
-        else:
-            parent[slot] = new_prompt
+        edit(data)
         buffer = io.StringIO()
         rt.dump(data, buffer)
         return buffer.getvalue()
@@ -161,11 +180,79 @@ def update_yaml_prompt(item: dict[str, Any], new_prompt: str) -> None:
 
     layouts = [(m, s, o) for m in (2, 4) for s in (2, 4) for o in (0, 2) if o < s]
     output = min((render(*layout) for layout in layouts), key=changed_lines)
+    parsed = yaml.safe_load(output)
 
-    _, _, written = yaml_value_at(yaml.safe_load(output), locator)
+    def write() -> None:
+        path.write_text(output, encoding="utf-8", newline=newline)
+
+    return parsed, write
+
+
+def update_yaml_prompt(item: dict[str, Any], new_prompt: str) -> None:
+    """Write a new prompt into the item's YAML file, keeping comments and block styles."""
+    path, locator = editable_location(item)
+
+    def edit(data: Any) -> None:
+        parent, slot, current = yaml_value_at(data, locator)
+        check_current_prompt(path, locator, current, item)
+        parent[slot] = styled_prompt(current, new_prompt)
+
+    parsed, write = rewrite_yaml(path, edit)
+    _, _, written = yaml_value_at(parsed, locator)
     if str(written) != new_prompt:
         raise RuntimeError(f"Could not write the prompt to {path.name} safely; the file was not changed.")
-    path.write_text(output, encoding="utf-8", newline=newline)
+    write()
+
+
+def duplicate_yaml_entry(item: dict[str, Any]) -> YamlLocator:
+    """Add a copy of a "key: prompt" entry right after it, under a free "<key>_copy" key. Returns its locator."""
+    path, locator = editable_location(item)
+    if locator[-1][0] != "key":
+        # List-style entries are identified by their prompt text, so an identical copy would share the id.
+        raise InvalidEditError("Only \"name: prompt\" entries can be duplicated; list-style entries cannot.")
+    parent_locator = locator[:-1]
+    new_key = ""
+
+    def edit(data: Any) -> None:
+        nonlocal new_key
+        parent, slot, current = yaml_value_at(data, locator)
+        check_current_prompt(path, locator, current, item)
+        taken = {str(key) for key in parent}
+        base = f"{slot}_copy"
+        new_key, counter = base, 2
+        while new_key in taken:
+            new_key = f"{base}{counter}"
+            counter += 1
+        # An empty value means "the key is the prompt", which the new key would change, so always write the prompt.
+        prompt = str(item.get("prompt") or "")
+        parent.insert(list(parent.keys()).index(slot) + 1, new_key, styled_prompt(current, prompt))
+
+    parsed, write = rewrite_yaml(path, edit)
+    new_locator = parent_locator + [["key", new_key]]
+    _, _, written = yaml_value_at(parsed, new_locator)
+    _, _, original = yaml_value_at(parsed, locator)
+    if str(written) != item.get("prompt", "") or str(original or locator[-1][1]) != item.get("prompt", ""):
+        raise RuntimeError(f"Could not duplicate the entry in {path.name} safely; the file was not changed.")
+    write()
+    return new_locator
+
+
+def delete_yaml_entry(item: dict[str, Any]) -> None:
+    """Remove the item's entry from its YAML file, keeping the rest of the file as it is."""
+    path, locator = editable_location(item)
+
+    def remove(data: Any) -> None:
+        parent, slot, current = yaml_value_at(data, locator)
+        check_current_prompt(path, locator, current, item)
+        del parent[slot]
+
+    parsed, write = rewrite_yaml(path, remove)
+    # The result must be exactly the old file's data minus this one entry.
+    expected = yaml.safe_load(path.read_text(encoding="utf-8-sig"))
+    remove(expected)
+    if parsed != expected:
+        raise RuntimeError(f"Could not delete the entry from {path.name} safely; the file was not changed.")
+    write()
 
 
 # --- Metadata ---------------------------------------------------------------
@@ -478,3 +565,39 @@ def save_item(payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     if old_image and old_image != str(metadata.get(item_id, {}).get("image") or ""):
         delete_preview_if_unused(old_image, metadata, load_config())
     return item_id, metadata.get(item_id, {})
+
+
+def duplicate_item(item_id: str) -> str:
+    """Copy a card: its YAML entry (next to the original) and its metadata. Returns the new item id.
+
+    The copy shares the original's preview image; replacing it on either card keeps the other's image.
+    """
+    item = get_item(item_id)
+    new_locator = duplicate_yaml_entry(item)
+    created = find_item_by_location(visual_eps_item_map(), item["source_path"], new_locator)
+    if not created:
+        raise RuntimeError("The copy was written but could not be found. Reload Visual EPS.")
+
+    metadata = load_metadata()
+    entry = metadata.get(item_id)
+    if isinstance(entry, dict) and entry:
+        entry = json.loads(json.dumps(entry))
+        if entry.get("display_name_override"):
+            entry["display_name_override"] = f"{entry['display_name_override']} (copy)"
+        metadata[created["id"]] = entry
+        save_metadata(metadata)
+    return str(created["id"])
+
+
+def delete_item(item_id: str) -> None:
+    """Delete a card: its YAML entry, its metadata, and its preview image when no other card uses it."""
+    item = get_item(item_id)
+    delete_yaml_entry(item)
+    metadata = load_metadata()
+    entry = metadata.pop(item_id, None)
+    if entry is None:
+        return
+    save_metadata(metadata)
+    image = str(entry.get("image") or "") if isinstance(entry, dict) else ""
+    if image:
+        delete_preview_if_unused(image, metadata, load_config())
