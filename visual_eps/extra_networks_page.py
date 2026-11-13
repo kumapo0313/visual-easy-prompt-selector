@@ -16,6 +16,33 @@ from .utils import log, natural_sort_key, normalize_key
 
 PAGE_NAME = "visual eps"
 
+# Card buttons: (class, name for screen readers, tooltip). The class picks the handler in the JS and the icon below.
+CARD_TOOLS = (
+    ("veps-preview-button", "View", "Preview"),
+    ("veps-edit-button", "Prompt edit", "Prompt edit: edit the insert prompt and Visual EPS metadata"),
+    ("veps-duplicate-button", "Copy", "Copy: duplicate this card (adds a copy of its YAML entry and settings)"),
+    ("veps-delete-button", "Delete", "Delete: remove this card (deletes its entry from the YAML file)"),
+)
+
+# 24x24 line icons drawn with currentColor, so they follow the button's text color.
+CARD_TOOL_ICONS = {
+    "veps-preview-button": '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    "veps-edit-button": '<path d="M16.5 3.5l4 4L8 20H4v-4L16.5 3.5z"/><path d="M14 6l4 4"/>',
+    "veps-duplicate-button": '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+    "veps-delete-button": '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v5M14 11v5"/>',
+}
+
+
+def card_tool_button(css_class: str, label: str, title: str, veps_id: str) -> str:
+    icon = (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+        f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{CARD_TOOL_ICONS[css_class]}</svg>'
+    )
+    return (
+        f'<button type="button" class="veps-card-tool {css_class}" data-veps-id="{veps_id}" '
+        f'title="{html.escape(title, quote=True)}" aria-label="{html.escape(label, quote=True)}">{icon}</button>'
+    )
+
 
 class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
     def __init__(self):
@@ -113,11 +140,9 @@ class ExtraNetworksPageVisualEPS(ui_extra_networks.ExtraNetworksPage):
         )
         rendered = rendered.replace('<div class="card"', f'<div class="card veps-extra-card" {attrs}', 1)
         veps_id = html.escape(str(item.get("veps_id", "")), quote=True)
-        buttons = (
-            '<button type="button" class="veps-card-tool veps-preview-button" title="Preview">View</button>'
-            f'<button type="button" class="veps-card-tool veps-edit-button" data-veps-id="{veps_id}" title="Edit insert prompt and Visual EPS metadata">Prompt edit</button>'
-            f'<button type="button" class="veps-card-tool veps-duplicate-button" data-veps-id="{veps_id}" title="Duplicate this card (adds a copy of its YAML entry and settings)">Copy</button>'
-            f'<button type="button" class="veps-card-tool veps-delete-button" data-veps-id="{veps_id}" title="Delete this card (removes its entry from the YAML file)">Delete</button>'
+        buttons = "".join(
+            card_tool_button(css_class, label, title, veps_id)
+            for css_class, label, title in CARD_TOOLS
         )
         rendered = rendered.replace('<div class="button-row">', f'<div class="button-row">{buttons}', 1)
         return rendered

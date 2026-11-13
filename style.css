@@ -239,8 +239,15 @@
   font-size: 11px;
 }
 
+/* Icon-only buttons, so four of them fit on a narrow card. */
 .extra-network-pane .button-row .veps-card-tool {
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
   margin: 2px;
   line-height: 1.2;
   align-self: center;
@@ -254,6 +261,12 @@
   border-color: rgba(96, 165, 250, 0.8);
   background: rgba(37, 99, 235, 0.88);
   color: #ffffff;
+}
+
+.veps-card-tool svg {
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
 }
 
 .extra-network-pane .button-row .veps-delete-button:hover {
